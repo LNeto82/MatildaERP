@@ -232,8 +232,9 @@ app.get('/api/admin/dashboard/history', verificarToken, verificarAdmin, async (r
     } catch (error) { res.status(500).send(error); }
 });
 
+// 🔥 ATUALIZAÇÃO: Rota do PDV Feira agora aceita valor editado manualmente
 app.post('/api/admin/pos/sale', verificarToken, verificarAdmin, async (req, res) => {
-    const { product_id, quantidade } = req.body;
+    const { product_id, quantidade, valor_total } = req.body;
     const connection = await promisePool.getConnection();
     await connection.beginTransaction();
     try {
@@ -242,8 +243,9 @@ app.post('/api/admin/pos/sale', verificarToken, verificarAdmin, async (req, res)
         
         if (produto.controla_estoque && produto.estoque_pacotes < quantidade) throw new Error('Estoque insuficiente para venda na Feira.');
         
-        const valorTotal = produto.preco_venda * quantidade;
-        await connection.query("INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES ('receita_feira', 'Venda PDV Feira', ?, NOW())", [valorTotal]);
+        const valorFinal = parseFloat(valor_total); // Usa o valor que vc digitou (com ou sem desconto)
+        
+        await connection.query("INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES ('receita_feira', 'Venda PDV Feira', ?, NOW())", [valorFinal]);
         
         if (produto.controla_estoque) {
             await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ?', [quantidade, product_id]);

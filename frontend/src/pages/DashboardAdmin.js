@@ -43,7 +43,7 @@ const DashboardAdmin = () => {
 
     const [formPacotes, setFormPacotes] = useState({ nome: '', descricao: '', preco_venda: '', estoque_pacotes: '', raw_inventory_id: '', desperdicio_kg: '', peso_unitario_kg: '0.250' });
     const [formAjuste, setFormAjuste] = useState({ tipo_estoque: 'pacotes', id: '', nova_quantidade: '' });
-    const [formPDV, setFormPDV] = useState({ product_id: '', quantidade: 1 });
+    const [formPDV, setFormPDV] = useState({ product_id: '', quantidade: 1, valor_total: '' }); 
     const [formGraos, setFormGraos] = useState({ nome_lote: '', peso_kg: '', custo_total: '' });
     const [formDespesa, setFormDespesa] = useState({ descricao: '', valor: '' });
 
@@ -77,7 +77,7 @@ const DashboardAdmin = () => {
             await api.post('/admin/pos/sale', formPDV);
             alert('Venda registrada com sucesso!');
             setModalPDVAberto(false);
-            setFormPDV({ product_id: '', quantidade: 1 });
+            setFormPDV({ product_id: '', quantidade: 1, valor_total: '' });
             carregarDados();
         } catch (error) { alert(error.response?.data?.erro || 'Erro ao vender.'); }
     };
@@ -143,6 +143,11 @@ const DashboardAdmin = () => {
         } catch (error) { alert('Erro ao atualizar status.'); }
     };
 
+    // FUNÇÃO DE FORMATAÇÃO DE MOEDA (Padrão BR: 1.000,00)
+    const formatarMoeda = (valor) => {
+        return Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
     const colorLucro = '#D4AF37';
     const colorDespesa = '#F44336';
     const colorSlate = '#64748B';
@@ -165,7 +170,6 @@ const DashboardAdmin = () => {
     const temVendas = Number(resumo.vendas_online) > 0 || Number(resumo.vendas_feira) > 0;
     const temHistorico = historico.length > 0;
 
-    // RADAR DE CAPPUCCINO: Verifica se o produto selecionado é o Cappuccino
     const isCappuccino = formPacotes.nome.toLowerCase().includes('capuc') || formPacotes.nome.toLowerCase().includes('cappuc');
 
     return (
@@ -180,19 +184,19 @@ const DashboardAdmin = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
                 <div style={{ ...styles.card, border: '1px solid rgba(212,175,55,0.3)', boxShadow: '0 0 20px rgba(212,175,55,0.05)' }}>
-                    <div style={{ color: '#D4AF37', fontSize: '2.5rem', fontWeight: 900, fontFamily: 'sans-serif' }}>R$ {Number(resumo.lucro_liquido).toFixed(2)}</div>
+                    <div style={{ color: '#D4AF37', fontSize: '2.5rem', fontWeight: 900, fontFamily: 'sans-serif' }}>R$ {formatarMoeda(resumo.lucro_liquido)}</div>
                     <div style={{ ...styles.textSlate, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '5px' }}>Lucro Líquido (Mês)</div>
                 </div>
                 <div style={styles.card}>
-                    <div style={{ color: colorDespesa, fontSize: '2rem', fontWeight: 700, fontFamily: 'sans-serif' }}>R$ {Number(resumo.total_despesas).toFixed(2)}</div>
+                    <div style={{ color: colorDespesa, fontSize: '2rem', fontWeight: 700, fontFamily: 'sans-serif' }}>R$ {formatarMoeda(resumo.total_despesas)}</div>
                     <div style={{ ...styles.textSlate, textTransform: 'uppercase', marginTop: '5px' }}>Despesas Totais</div>
                 </div>
                 <div style={styles.card}>
-                    <div style={{ color: '#fff', fontSize: '2rem', fontWeight: 700, fontFamily: 'sans-serif' }}>R$ {Number(resumo.vendas_online).toFixed(2)}</div>
+                    <div style={{ color: '#fff', fontSize: '2rem', fontWeight: 700, fontFamily: 'sans-serif' }}>R$ {formatarMoeda(resumo.vendas_online)}</div>
                     <div style={{ ...styles.textSlate, textTransform: 'uppercase', marginTop: '5px' }}>Vendas E-commerce</div>
                 </div>
                 <div style={styles.card}>
-                    <div style={{ color: '#fff', fontSize: '2rem', fontWeight: 700, fontFamily: 'sans-serif' }}>R$ {Number(resumo.vendas_feira).toFixed(2)}</div>
+                    <div style={{ color: '#fff', fontSize: '2rem', fontWeight: 700, fontFamily: 'sans-serif' }}>R$ {formatarMoeda(resumo.vendas_feira)}</div>
                     <div style={{ ...styles.textSlate, textTransform: 'uppercase', marginTop: '5px' }}>Vendas Feira</div>
                 </div>
             </div>
@@ -291,7 +295,6 @@ const DashboardAdmin = () => {
                                 <div style={{flex: 1}}><input style={styles.inputGold} type="number" min="1" placeholder="Qtd Produzida" value={formPacotes.estoque_pacotes} onChange={e => setFormPacotes({...formPacotes, estoque_pacotes: e.target.value})} required /></div>
                             </div>
                             
-                            {/* A MÁGICA VISUAL: Desativa os campos se for Cappuccino */}
                             <div style={{background: 'rgba(212, 175, 55, 0.05)', padding: '15px', borderRadius: '10px', border: '1px solid rgba(212, 175, 55, 0.1)', marginBottom: '15px', opacity: isCappuccino ? 0.3 : 1, transition: '0.3s'}}>
                                 <label style={{color:'#D4AF37', fontSize:'0.85rem', fontWeight: 'bold', fontFamily:'sans-serif'}}>
                                     Debitar Matéria-Prima {isCappuccino && "(Não Aplicável)"}
@@ -354,7 +357,7 @@ const DashboardAdmin = () => {
                                         <tr key={p.id} style={{borderBottom:'1px solid #222'}}>
                                             <td style={{padding:'15px 10px', color:'#D4AF37', fontWeight:'bold'}}>#{p.id}</td>
                                             <td style={{padding:'15px 10px'}}>{p.cliente}</td>
-                                            <td style={{padding:'15px 10px', fontWeight:'bold'}}>R$ {Number(p.total).toFixed(2)}</td>
+                                            <td style={{padding:'15px 10px', fontWeight:'bold'}}>R$ {formatarMoeda(p.total)}</td>
                                             <td style={{padding:'15px 10px'}}>
                                                 <select style={{background:'#000', border:'1px solid #333', color:'#fff', padding:'8px', borderRadius:'5px'}} value={p.status} onChange={(e) => atualizarStatusPedido(p.id, e.target.value)}>
                                                     <option value="pendente">Aguardando PIX</option>
@@ -377,11 +380,34 @@ const DashboardAdmin = () => {
                     <div style={styles.modalBox}>
                         <h2 style={{...styles.cardTitle, color:'#FF6B6B'}}><i className="fas fa-store"></i> Caixa da Feira</h2>
                         <form onSubmit={handleVendaPDV}>
-                            <select style={styles.inputGold} value={formPDV.product_id} onChange={e => setFormPDV({...formPDV, product_id: e.target.value})} required>
-                                <option value="">Qual café vendeu?</option>
+                            <select style={styles.inputGold} value={formPDV.product_id} onChange={e => {
+                                const prodId = e.target.value;
+                                // CORREÇÃO ESLINT: Usando String(id) === String(prodId)
+                                const prod = produtosPDV.find(p => String(p.id) === String(prodId));
+                                const precoVenda = prod ? parseFloat(prod.preco_venda) : 0;
+                                setFormPDV({...formPDV, product_id: prodId, valor_total: (precoVenda * formPDV.quantidade).toFixed(2)});
+                            }} required>
+                                <option value="">Qual produto vendeu?</option>
                                 {produtosPDV.map(p => <option key={p.id} value={p.id}>{p.nome} (Restam: {p.estoque_pacotes})</option>)}
                             </select>
-                            <input style={styles.inputGold} type="number" min="1" placeholder="Qtd" value={formPDV.quantidade} onChange={e => setFormPDV({...formPDV, quantidade: e.target.value})} required />
+                            
+                            <div style={{display: 'flex', gap: '15px'}}>
+                                <div style={{flex: 1}}>
+                                    <label style={{color:'#94A3B8', fontSize:'0.8rem', fontFamily:'sans-serif'}}>Qtd:</label>
+                                    <input style={{...styles.inputGold, marginTop: '5px'}} type="number" min="1" value={formPDV.quantidade} onChange={e => {
+                                        const qtd = e.target.value;
+                                        // CORREÇÃO ESLINT: Usando String(id) === String(formPDV.product_id)
+                                        const prod = produtosPDV.find(p => String(p.id) === String(formPDV.product_id));
+                                        const precoVenda = prod ? parseFloat(prod.preco_venda) : 0;
+                                        setFormPDV({...formPDV, quantidade: qtd, valor_total: (precoVenda * qtd).toFixed(2)});
+                                    }} required />
+                                </div>
+                                <div style={{flex: 2}}>
+                                    <label style={{color:'#94A3B8', fontSize:'0.8rem', fontFamily:'sans-serif'}}>Valor Cobrado (R$):</label>
+                                    <input style={{...styles.inputGold, marginTop: '5px'}} type="number" step="0.01" value={formPDV.valor_total} onChange={e => setFormPDV({...formPDV, valor_total: e.target.value})} required />
+                                </div>
+                            </div>
+
                             <button style={styles.btnOperational}>REGISTRAR VENDA</button>
                             <button type="button" onClick={() => setModalPDVAberto(false)} style={{...styles.btnOperational, background:'transparent', border:'1px solid #333', color:'#94A3B8', marginTop:'10px'}}>CANCELAR</button>
                         </form>
