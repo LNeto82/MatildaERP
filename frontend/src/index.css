@@ -1,0 +1,382 @@
+/* =========================================================
+   VARIÁVEIS DE TEMA (CORES, SOMBRAS E BORDAS)
+========================================================= */
+:root {
+    --primary: #00D4AA;
+    --primary-dark: #00B894;
+    --primary-light: #80E8D0;
+    --secondary: #6C63FF;
+    --accent: #FF6B6B;
+    --dark: #0F172A;
+    --darker: #020617;
+    --light: #F8FAFC;
+    --gray: #64748B;
+    --gray-dark: #334155;
+    --white: #FFFFFF;
+    
+    /* Efeitos Glassmorphism (Vidro) */
+    --glass: rgba(255, 255, 255, 0.08);
+    --glass-dark: rgba(15, 23, 42, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-border-highlight: rgba(0, 212, 170, 0.2);
+    
+    /* Sombras e Brilhos */
+    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    --shadow-lg: 0 35px 60px -12px rgba(0, 0, 0, 0.3);
+    --border-glow: 0 0 20px rgba(0, 212, 170, 0.3);
+    
+    /* Degradês */
+    --gradient: linear-gradient(135deg, var(--primary), var(--secondary));
+    --gradient-dark: linear-gradient(135deg, var(--darker), var(--dark));
+}
+
+/* Variáveis para tema claro (Light Mode) */
+[data-theme="light"] {
+    --dark: #F8FAFC;
+    --darker: #E2E8F0;
+    --light: #0F172A;
+    --gray: #475569;
+    --gray-dark: #334155;
+    --white: #FFFFFF;
+    --glass: rgba(15, 23, 42, 0.05);
+    --glass-dark: rgba(248, 250, 252, 0.8);
+    --glass-border: rgba(0, 0, 0, 0.05);
+    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 35px 60px -12px rgba(0, 0, 0, 0.15);
+    --gradient-dark: linear-gradient(135deg, var(--darker), var(--dark));
+}
+
+/* =========================================================
+   RESETS E BASE
+========================================================= */
+* { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--gradient-dark);
+    color: var(--light);
+    min-height: 100vh;
+    overflow-x: hidden;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.app-container { 
+    min-height: 100vh; 
+    position: relative; 
+    padding: 2rem;
+}
+
+/* =========================================================
+   EFEITOS DE FUNDO
+========================================================= */
+.bg-effects {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    overflow: hidden;
+}
+
+.gradient-orbs {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.15;
+    background: var(--gradient);
+    width: 300px;
+    height: 300px;
+}
+
+/* =========================================================
+   CARDS DE VIDRO (GLASSMORPHISM) E CONTAINERS
+========================================================= */
+.glass-card {
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 2rem;
+}
+
+.tab-content {
+    display: none; 
+    animation: fadeInUp 0.4s ease forwards;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* =========================================================
+   CABEÇALHOS DE CARDS ULTRA
+========================================================= */
+.card-header-ultra {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.card-icon-ultra {
+    background: var(--glass);
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    color: var(--primary);
+    font-size: 1.5rem;
+    border: 1px solid var(--glass-border-highlight);
+    box-shadow: var(--border-glow);
+}
+
+.card-title-ultra {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--white);
+}
+
+/* =========================================================
+   RESULTADOS (RESULTS ULTRA)
+========================================================= */
+.results-ultra {
+    background: var(--glass);
+    border-radius: 24px;
+    padding: 2rem;
+    border: 1px solid var(--glass-border-highlight);
+    box-shadow: var(--shadow-lg), var(--border-glow);
+    margin-top: 2rem;
+}
+
+.result-header-ultra {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.plant-count-ultra {
+    font-size: 3rem;
+    font-weight: 800;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* =========================================================
+   FILTROS, INPUTS E BOTÕES
+========================================================= */
+.date-filter, .history-filter {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    background: var(--glass);
+    padding: 1rem;
+    border-radius: 12px;
+}
+
+.date-input, .filter-input {
+    background: var(--dark);
+    border: 1px solid var(--glass-border);
+    color: var(--light);
+    padding: 0.8rem 1rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.filter-input {
+    flex-grow: 1;
+}
+
+.date-input:focus, .filter-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 10px rgba(0, 212, 170, 0.2);
+}
+
+.btn {
+    padding: 0.8rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: var(--darker);
+    box-shadow: 0 4px 15px rgba(0, 212, 170, 0.4);
+}
+
+.btn-primary:hover {
+    background: var(--primary-light);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 212, 170, 0.6);
+}
+
+.filter-btn {
+    background: var(--gradient);
+    color: var(--white);
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: opacity 0.3s, transform 0.2s;
+}
+
+.filter-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+}
+
+.btn-header {
+    background: transparent;
+    color: var(--gray);
+    border: 1px solid var(--gray);
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-header:hover {
+    background: var(--gray);
+    color: var(--white);
+}
+
+/* =========================================================
+   PAGINAÇÃO
+========================================================= */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--glass-border);
+}
+
+.pagination-btn {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    color: var(--light);
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pagination-btn:hover {
+    background: var(--primary);
+    color: var(--darker);
+    border-color: var(--primary);
+}
+
+.pagination-info {
+    color: var(--gray);
+    font-weight: 500;
+}
+
+/* =========================================================
+   ANIMAÇÕES
+========================================================= */
+.fade-in-up {
+    animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* =========================================================
+   RESPONSIVIDADE (SMARTPHONES E TABLETS)
+========================================================= */
+@media screen and (max-width: 768px) {
+    /* 1. Reduz o padding geral para aproveitar a tela do celular */
+    .app-container {
+        padding: 1rem !important;
+    }
+
+    /* 2. Reduz o espaçamento interno dos cards de vidro */
+    .glass-card, .results-ultra {
+        padding: 1.5rem !important;
+    }
+
+    /* 3. Tira o carrinho do modo "Grudado" (Sticky) para que ele 
+       desça naturalmente para o final da página no mobile */
+    .results-ultra {
+        position: relative !important;
+        top: 0 !important;
+        margin-top: 2rem !important;
+    }
+
+    /* 4. Cabeçalhos: Coloca a logo em cima e os dados do usuário embaixo */
+    .fade-in-up > div:first-child,
+    .glass-card:first-child {
+        flex-direction: column !important;
+        text-align: center !important;
+        gap: 15px !important;
+    }
+
+    /* 5. Modais (Telas flutuantes): Ajusta para caber na largura do celular */
+    div[style*="fixed"] > div {
+        width: 95% !important;
+        padding: 1.5rem !important;
+        max-height: 90vh !important;
+    }
+
+    /* 6. Tabela de Pedidos Online: Cria um scroll horizontal só pra ela, 
+       evitando que a tabela estoure a tela do celular */
+    table {
+        display: block !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+    }
+
+    /* 7. Reduz o tamanho das fontes gigantes */
+    h1 { font-size: 1.8rem !important; }
+    .plant-count-ultra { font-size: 2rem !important; }
+    .card-title-ultra { font-size: 1.3rem !important; }
+
+    /* 8. Ajusta o tamanho do QR Code do PIX para não ficar espremido */
+    img[alt="QR Code PIX Banco Central"] {
+        width: 150px !important;
+        height: 150px !important;
+    }
+}
