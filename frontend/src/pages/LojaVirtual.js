@@ -91,7 +91,6 @@ const LojaVirtual = () => {
 
     return (
         <div style={{ background: 'linear-gradient(135deg, #241610 0%, #0a0705 50%, #170d08 100%)', minHeight: '100vh', color: '#E2E8F0', fontFamily: '"Georgia", serif', position: 'relative', overflowX: 'hidden' }}>
-            {/* Elementos decorativos de fundo para dar o efeito de desfoque de cor (blobs) */}
             <div style={{ position: 'absolute', top: '10%', left: '-10%', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)', filter: 'blur(60px)', zIndex: 0, borderRadius: '50%' }}></div>
             <div style={{ position: 'absolute', bottom: '20%', right: '-10%', width: '600px', height: '600px', background: 'radial-gradient(circle, rgba(184,134,11,0.06) 0%, transparent 70%)', filter: 'blur(80px)', zIndex: 0, borderRadius: '50%' }}></div>
 
@@ -103,10 +102,8 @@ const LojaVirtual = () => {
                 .page-layout { display: flex; padding: 0; min-height: 100vh; position: relative; zIndex: 1; }
                 .content-area { flex: 1; padding: 0; overflow-y: auto; scroll-behavior: smooth; }
                 
-                /* EFEITO GLASSMORPHISM NA SIDEBAR */
                 .glass-sidebar { width: 420px; background: rgba(20, 12, 8, 0.45); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-left: 1px solid rgba(255, 255, 255, 0.05); box-shadow: -10px 0 40px rgba(0,0,0,0.5); position: sticky; top: 0; height: 100vh; overflow-y: auto; font-family: sans-serif; padding: 2.5rem; }
                 
-                /* EFEITO RUBBER E GLASS NOS BOTÕES */
                 .btn-gold { 
                     background: linear-gradient(135deg, rgba(212,175,55,0.85), rgba(184,134,11,0.85)); 
                     backdrop-filter: blur(8px);
@@ -121,7 +118,7 @@ const LojaVirtual = () => {
                     letter-spacing: 2px; 
                     width: 100%; 
                     box-shadow: 0 8px 25px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.2);
-                    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Rubber Easing */
+                    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
                 }
                 .btn-gold:hover { 
                     transform: translateY(-4px) scale(1.02); 
@@ -129,7 +126,7 @@ const LojaVirtual = () => {
                     background: linear-gradient(135deg, rgba(222,185,65,0.95), rgba(194,144,21,0.95));
                 }
                 .btn-gold:active { 
-                    transform: translateY(2px) scale(0.97); /* Compressão elástica ao clicar */
+                    transform: translateY(2px) scale(0.97);
                     box-shadow: 0 5px 15px rgba(0,0,0,0.4);
                 }
                 .btn-gold:disabled { background: rgba(40,40,40,0.5); color: #777; cursor: not-allowed; transform: none; box-shadow: none; border-color: transparent; }
@@ -157,7 +154,6 @@ const LojaVirtual = () => {
                 }
                 .btn-outline-gold:active { transform: translateY(1px) scale(0.98); }
                 
-                /* INPUTS MODERNIZADOS (Desfoque interno leve) */
                 .input-luxury { 
                     background: rgba(10, 5, 3, 0.5); 
                     border: 1px solid rgba(255, 255, 255, 0.08); 
@@ -179,7 +175,6 @@ const LojaVirtual = () => {
                     background: rgba(20, 12, 8, 0.8);
                 }
                 
-                /* CARDS DOS PRODUTOS EM GLASSMORPHISM */
                 .glass-card { 
                     background: rgba(25, 17, 12, 0.3); 
                     backdrop-filter: blur(12px); 
@@ -202,7 +197,6 @@ const LojaVirtual = () => {
                     background: rgba(30, 20, 15, 0.45);
                 }
                 
-                /* EMBALAGENS LEVEMENTE MAIS SUAVES */
                 .embalagem { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); transition: transform 0.4s ease; }
                 .glass-card:hover .embalagem { transform: scale(1.05); }
                 .pacote-tradicional { width: 170px; height: 260px; border-radius: 12px 12px 20px 20px; background: linear-gradient(145deg, #1c140e, #0a0705); border: 1px solid rgba(255,255,255,0.05); }
@@ -223,7 +217,6 @@ const LojaVirtual = () => {
 
             <div className="page-layout">
                 <div className="content-area">
-                    {/* HEADER COM GLASSMORPHISM */}
                     <header style={{ padding: '1.5rem 4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(20, 12, 8, 0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
                         <h1 className="gold-title" style={{ margin: 0, fontSize: '1.4rem', letterSpacing: '4px', textTransform: 'uppercase' }}>
                             <i className="fas fa-crown" style={{ marginRight: '12px', fontSize: '1.1rem' }}></i> MATILDA
@@ -349,12 +342,10 @@ const LojaVirtual = () => {
                 </aside>
             </div>
 
-            {/* MODAL PIX COM GLASSMORPHISM */}
             {modalPixAberto && pedidoAtual && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(25px)', WebkitBackdropFilter: 'blur(25px)' }}>
                     <div style={{ background: 'rgba(25, 17, 12, 0.7)', border: '1px solid rgba(212,175,55,0.3)', padding: '3.5rem 2.5rem', borderRadius: '24px', textAlign: 'center', maxWidth: '420px', width: '90%', boxShadow: '0 30px 60px rgba(0,0,0,0.8), inset 0 2px 10px rgba(255,255,255,0.1)', fontFamily: 'sans-serif', position: 'relative', overflow: 'hidden' }}>
                         
-                        {/* Brilho de fundo no modal */}
                         <div style={{ position: 'absolute', top: '-50px', left: '50%', transform: 'translateX(-50%)', width: '150px', height: '150px', background: 'rgba(212,175,55,0.2)', filter: 'blur(50px)', borderRadius: '50%', zIndex: 0 }}></div>
 
                         <div style={{ position: 'relative', zIndex: 1 }}>

@@ -165,6 +165,9 @@ const DashboardAdmin = () => {
     const temVendas = Number(resumo.vendas_online) > 0 || Number(resumo.vendas_feira) > 0;
     const temHistorico = historico.length > 0;
 
+    // RADAR DE CAPPUCCINO: Verifica se o produto selecionado é o Cappuccino
+    const isCappuccino = formPacotes.nome.toLowerCase().includes('capuc') || formPacotes.nome.toLowerCase().includes('cappuc');
+
     return (
         <div style={styles.page}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', flexWrap: 'wrap', gap: '20px' }}>
@@ -264,11 +267,21 @@ const DashboardAdmin = () => {
                     <div style={styles.modalBox}>
                         <h2 style={styles.cardTitle}><i className="fas fa-box-open"></i> Produção Dinâmica</h2>
                         <form onSubmit={handleProducao}>
-                            <input style={styles.inputGold} type="text" placeholder="Nome do Produto (Ex: Sachê Especial Matilda)" value={formPacotes.nome} onChange={e => setFormPacotes({...formPacotes, nome: e.target.value})} required />
-                            <input style={styles.inputGold} type="text" placeholder="Descrição (Aparece na Loja)" value={formPacotes.descricao} onChange={e => setFormPacotes({...formPacotes, descricao: e.target.value})} required />
                             
+                            <label style={{color:'#94A3B8', fontSize:'0.8rem', fontFamily:'sans-serif'}}>O que você vai produzir?</label>
+                            <select style={{...styles.inputGold, marginTop: '5px'}} value={formPacotes.nome} onChange={e => {
+                                const val = e.target.value;
+                                const isCap = val.includes('Cappuccino');
+                                setFormPacotes({...formPacotes, nome: val, descricao: isCap ? 'Mistura para Cappuccino Artesanal' : 'Café Especial 100% Arábica'});
+                            }} required>
+                                <option value="">Selecione o produto...</option>
+                                <option value="Café Especial Moído">☕ Café Especial Moído</option>
+                                <option value="Café Especial em Grãos">☕ Café Especial em Grãos</option>
+                                <option value="Cappuccino">🍫 Cappuccino</option>
+                            </select>
+
                             <label style={{color:'#94A3B8', fontSize:'0.8rem', fontFamily:'sans-serif'}}>Formato / Peso da Unidade:</label>
-                            <select style={styles.inputGold} value={formPacotes.peso_unitario_kg} onChange={e => setFormPacotes({...formPacotes, peso_unitario_kg: e.target.value})} required>
+                            <select style={{...styles.inputGold, marginTop: '5px'}} value={formPacotes.peso_unitario_kg} onChange={e => setFormPacotes({...formPacotes, peso_unitario_kg: e.target.value})} required>
                                 <option value="0.250">🎒 Pacote Tradicional (250g)</option>
                                 <option value="0.010">☕ Sachê Individual / Drip Coffee (10g)</option>
                             </select>
@@ -278,14 +291,17 @@ const DashboardAdmin = () => {
                                 <div style={{flex: 1}}><input style={styles.inputGold} type="number" min="1" placeholder="Qtd Produzida" value={formPacotes.estoque_pacotes} onChange={e => setFormPacotes({...formPacotes, estoque_pacotes: e.target.value})} required /></div>
                             </div>
                             
-                            <div style={{background: 'rgba(212, 175, 55, 0.05)', padding: '15px', borderRadius: '10px', border: '1px solid rgba(212, 175, 55, 0.1)', marginBottom: '15px'}}>
-                                <label style={{color:'#D4AF37', fontSize:'0.85rem', fontWeight: 'bold', fontFamily:'sans-serif'}}>Debitar Matéria-Prima</label>
-                                <select style={{...styles.inputGold, marginTop: '10px'}} value={formPacotes.raw_inventory_id} onChange={e => setFormPacotes({...formPacotes, raw_inventory_id: e.target.value})} required>
+                            {/* A MÁGICA VISUAL: Desativa os campos se for Cappuccino */}
+                            <div style={{background: 'rgba(212, 175, 55, 0.05)', padding: '15px', borderRadius: '10px', border: '1px solid rgba(212, 175, 55, 0.1)', marginBottom: '15px', opacity: isCappuccino ? 0.3 : 1, transition: '0.3s'}}>
+                                <label style={{color:'#D4AF37', fontSize:'0.85rem', fontWeight: 'bold', fontFamily:'sans-serif'}}>
+                                    Debitar Matéria-Prima {isCappuccino && "(Não Aplicável)"}
+                                </label>
+                                <select style={{...styles.inputGold, marginTop: '10px'}} value={formPacotes.raw_inventory_id} onChange={e => setFormPacotes({...formPacotes, raw_inventory_id: e.target.value})} required={!isCappuccino} disabled={isCappuccino}>
                                     <option value="">Selecione o Lote de Origem...</option>
                                     {lotesBrutos.map(lote => <option key={lote.id} value={lote.id}>{lote.nome_lote} (Restam {Number(lote.peso_kg).toFixed(2)}kg)</option>)}
                                 </select>
                                 <label style={{color:'#94A3B8', fontSize:'0.8rem', fontFamily:'sans-serif'}}>Desperdício no processo (KG):</label>
-                                <input style={{...styles.inputGold, marginBottom: 0, marginTop: '5px'}} type="number" step="0.001" placeholder="Ex: 0.150" value={formPacotes.desperdicio_kg} onChange={e => setFormPacotes({...formPacotes, desperdicio_kg: e.target.value})} />
+                                <input style={{...styles.inputGold, marginBottom: 0, marginTop: '5px'}} type="number" step="0.001" placeholder="Ex: 0.150" value={formPacotes.desperdicio_kg} onChange={e => setFormPacotes({...formPacotes, desperdicio_kg: e.target.value})} disabled={isCappuccino} />
                             </div>
 
                             <button style={styles.btnOperational}>CONFIRMAR PRODUÇÃO</button>

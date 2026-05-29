@@ -53,14 +53,17 @@ async function blindarBancoDeDados() {
         try { await promisePool.query("ALTER TABLE products ADD COLUMN descricao TEXT"); } catch(e) {}
         try { await promisePool.query("ALTER TABLE products ADD COLUMN tipo VARCHAR(50) DEFAULT 'moido'"); } catch(e) {}
         try { await promisePool.query("ALTER TABLE products ADD COLUMN peso_unitario_kg DECIMAL(5,3) DEFAULT 0.250"); } catch(e) {}
+        try { await promisePool.query("ALTER TABLE products ADD COLUMN controla_estoque BOOLEAN DEFAULT TRUE"); } catch(e) {}
         
-        // Tenta remover a obrigatoriedade, mas não dependemos mais disso para o código funcionar.
         try { 
             await promisePool.query("ALTER TABLE users MODIFY COLUMN email VARCHAR(255) NULL"); 
             await promisePool.query("ALTER TABLE users MODIFY COLUMN senha VARCHAR(255) NULL"); 
         } catch(e) {}
 
-        console.log("✅ AUTO-REPARO CONCLUÍDO: Tabelas integradas e prontas!");
+        // 🔥 EXTERMINADOR: Deleta qualquer produto bugado com estoque absurdo (o fantasma do Cappuccino)
+        await promisePool.query("DELETE FROM products WHERE estoque_pacotes > 5000");
+
+        console.log("✅ AUTO-REPARO CONCLUÍDO: Fantasmas deletados! Banco limpo e pronto.");
     } catch (error) {
         console.log("⚠️ Sincronização de tabelas: ", error.message);
     }
@@ -105,7 +108,6 @@ app.post('/api/orders', async (req, res) => {
         let userId;
 
         if (user.length === 0) {
-            // SOLUÇÃO DEFINITIVA: Injetando textos fictícios blindados contra erros NOT NULL no MySQL
             const emailFake = `${cliente_whats.replace(/\D/g, '')}@cliente.matilda.local`;
             const senhaFake = 'senha_ficticia_padrao';
 
@@ -124,10 +126,10 @@ app.post('/api/orders', async (req, res) => {
         const orderId = orderResult.insertId;
 
         for (let item of items) {
-            const [produtos] = await connection.query('SELECT preco_venda, estoque_pacotes FROM products WHERE id = ?', [item.product_id]);
+            const [produtos] = await connection.query('SELECT preco_venda, estoque_pacotes, controla_estoque FROM products WHERE id = ?', [item.product_id]);
             const produto = produtos[0];
             
-            if (!produto || produto.estoque_pacotes < item.quantidade) throw new Error('Estoque insuficiente para a compra.');
+            if (produto.controla_estoque && produto.estoque_pacotes < item.quantidade) throw new Error('Estoque insuficiente para a compra.');
 
             valorTotal += produto.preco_venda * item.quantidade;
             await connection.query('INSERT INTO order_items (order_id, product_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)', [orderId, item.product_id, item.quantidade, produto.preco_venda]);
@@ -138,8 +140,6 @@ app.post('/api/orders', async (req, res) => {
         res.status(201).json({ orderId, total: valorTotal });
     } catch (error) {
         await connection.rollback();
-        // LOG NO TERMINAL PARA DEBUG SE O ERRO PERSISTIR:
-        console.error("\n❌ ERRO DETALHADO NO CHECKOUT:", error.message, "\n");
         res.status(400).json({ erro: error.message });
     } finally { connection.release(); }
 });
@@ -164,23 +164,25 @@ app.put('/api/admin/orders/:id/status', verificarToken, verificarAdmin, async (r
 
         await connection.query('UPDATE orders SET status = ? WHERE id = ?', [status, orderId]);
 
-        // Baixa de estoque apenas no momento da confirmação do pagamento
         const isOldPending = oldStatus === 'pendente' || oldStatus === 'Aguardando PIX';
         const isNewConfirmed = status !== 'pendente' && status !== 'Aguardando PIX' && status.toLowerCase() !== 'cancelado';
 
         if (isOldPending && isNewConfirmed) {
-            const [items] = await connection.query('SELECT product_id, quantidade FROM order_items WHERE order_id = ?', [orderId]);
+            const [items] = await connection.query('SELECT oi.product_id, oi.quantidade, p.controla_estoque FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', [orderId]);
             for (let item of items) {
-                await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ?', [item.quantidade, item.product_id]);
+                if (item.controla_estoque) {
+                    await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ?', [item.quantidade, item.product_id]);
+                }
             }
         }
 
-        // Estorno de estoque caso cancelemos um pedido já pago
         const isOldConfirmed = oldStatus !== 'pendente' && oldStatus !== 'Aguardando PIX' && oldStatus.toLowerCase() !== 'cancelado';
         if (isOldConfirmed && status.toLowerCase() === 'cancelado') {
-            const [items] = await connection.query('SELECT product_id, quantidade FROM order_items WHERE order_id = ?', [orderId]);
+            const [items] = await connection.query('SELECT oi.product_id, oi.quantidade, p.controla_estoque FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', [orderId]);
             for (let item of items) {
-                await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ? WHERE id = ?', [item.quantidade, item.product_id]);
+                if (item.controla_estoque) {
+                    await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ? WHERE id = ?', [item.quantidade, item.product_id]);
+                }
             }
         }
 
@@ -235,13 +237,17 @@ app.post('/api/admin/pos/sale', verificarToken, verificarAdmin, async (req, res)
     const connection = await promisePool.getConnection();
     await connection.beginTransaction();
     try {
-        const [produtos] = await connection.query('SELECT preco_venda, estoque_pacotes FROM products WHERE id = ?', [product_id]);
+        const [produtos] = await connection.query('SELECT preco_venda, estoque_pacotes, controla_estoque FROM products WHERE id = ?', [product_id]);
         const produto = produtos[0];
-        if (!produto || produto.estoque_pacotes < quantidade) throw new Error('Estoque insuficiente para venda na Feira.');
+        
+        if (produto.controla_estoque && produto.estoque_pacotes < quantidade) throw new Error('Estoque insuficiente para venda na Feira.');
         
         const valorTotal = produto.preco_venda * quantidade;
         await connection.query("INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES ('receita_feira', 'Venda PDV Feira', ?, NOW())", [valorTotal]);
-        await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ?', [quantidade, product_id]);
+        
+        if (produto.controla_estoque) {
+            await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ?', [quantidade, product_id]);
+        }
         
         await connection.commit();
         res.json({ mensagem: 'Venda registrada com sucesso!' });
@@ -266,7 +272,7 @@ app.post('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req,
     const { nome_lote, peso_kg, custo_total, data_chegada } = req.body;
     try {
         await promisePool.query('INSERT INTO raw_inventory (nome_lote, peso_kg, custo_total, data_chegada) VALUES (?, ?, ?, ?)', [nome_lote, peso_kg, custo_total, data_chegada]);
-        res.json({ mensagem: 'Lote Bruto guardado no estoque! (Lance o custo manualmente no Gasto Extra)' });
+        res.json({ mensagem: 'Lote Bruto guardado no estoque!' });
     } catch (error) { 
         res.status(500).json({ erro: error.message }); 
     }
@@ -279,20 +285,26 @@ app.get('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, 
     } catch (error) { res.status(500).send(error); }
 });
 
+// A ROTA MESTRE DA PRODUÇÃO (SEM GAMBIARRA NENHUMA)
 app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res) => {
     const { nome, descricao, preco_venda, estoque_pacotes, raw_inventory_id, desperdicio_kg, peso_unitario_kg } = req.body;
     const connection = await promisePool.getConnection();
     await connection.beginTransaction();
 
     try {
-        const qtdPacotes = parseInt(estoque_pacotes) || 0;
+        let qtdPacotes = parseInt(estoque_pacotes) || 0;
         const desp = parseFloat(desperdicio_kg) || 0;
         const preco = parseFloat(preco_venda) || 0;
         const pesoUnitario = parseFloat(peso_unitario_kg) || 0.250;
         const tipo = pesoUnitario <= 0.020 ? 'sache' : (nome.toLowerCase().includes('grão') ? 'grao' : 'moido');
         const desc = descricao || 'Café Especial 100% Arábica';
 
-        if (raw_inventory_id) {
+        // Verifica se é Cappuccino para NÃO abater a matéria-prima (grãos)
+        const nomeBusca = nome.toLowerCase();
+        const isCappuccino = nomeBusca.includes('capuc') || nomeBusca.includes('cappuc');
+
+        // SÓ DESCONTA O GRÃO DA FÁBRICA SE NÃO FOR CAPPUCCINO
+        if (!isCappuccino && raw_inventory_id) {
             const kgLiquido = qtdPacotes * pesoUnitario;
             const kgTotalSaida = kgLiquido + desp;
 
@@ -305,11 +317,12 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
             await connection.query('UPDATE raw_inventory SET peso_kg = peso_kg - ? WHERE id = ?', [kgTotalSaida, raw_inventory_id]);
         }
 
+        // SALVA O ESTOQUE REAL (Soma o que vc digitou agora com o que já tem lá)
         const [existe] = await connection.query('SELECT id FROM products WHERE nome = ?', [nome]);
         if (existe.length > 0) {
-            await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, descricao = ?, tipo = ?, peso_unitario_kg = ? WHERE id = ?', [qtdPacotes, desc, tipo, pesoUnitario, existe[0].id]);
+            await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, descricao = ?, tipo = ?, peso_unitario_kg = ?, controla_estoque = true WHERE id = ?', [qtdPacotes, desc, tipo, pesoUnitario, existe[0].id]);
         } else {
-            await connection.query('INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg) VALUES (?, ?, ?, ?, ?, ?)', [nome, desc, preco, qtdPacotes, tipo, pesoUnitario]);
+            await connection.query('INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg, controla_estoque) VALUES (?, ?, ?, ?, ?, ?, true)', [nome, desc, preco, qtdPacotes, tipo, pesoUnitario]);
         }
 
         await connection.commit();
@@ -332,4 +345,5 @@ app.post('/api/admin/inventory/adjust', verificarToken, verificarAdmin, async (r
     } catch (error) { res.status(500).json({ erro: error.message }); }
 });
 
-app.listen(3030, () => console.log('Matilda ERP rodando na porta 3030!'));
+const PORT = process.env.PORT || 3030;
+app.listen(PORT, () => console.log(`Matilda ERP rodando na porta ${PORT}!`));
