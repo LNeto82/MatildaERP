@@ -1,378 +1,448 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
+// ==========================================
+// ESTILOS AVANÇADOS (GLASS, RUBBER, GRADIENTS)
+// ==========================================
+const customStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap');
+
+  body, html {
+    margin: 0;
+    padding: 0;
+    background-color: #FAFAFA;
+    font-family: 'Montserrat', sans-serif;
+    color: #111111;
+  }
+
+  /* Fundo Branco com sutis manchas douradas para o Glassmorphism funcionar */
+  .page-container {
+    min-height: 100vh;
+    background: 
+      radial-gradient(circle at 15% 50%, rgba(212, 175, 55, 0.08), transparent 25%),
+      radial-gradient(circle at 85% 30%, rgba(212, 175, 55, 0.05), transparent 25%),
+      #FFFFFF;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* EFEITO GLASSMORPHISM (VIDRO DESFOCADO) */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+    border-radius: 20px;
+  }
+
+  /* EFEITO RUBBER E DEGRADÊ NOS BOTÕES */
+  .btn-rubber {
+    background: linear-gradient(135deg, #F3E5AB 0%, #D4AF37 50%, #B8860B 100%);
+    background-size: 200% auto;
+    color: #000000;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: none;
+    padding: 15px 25px;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); 
+  }
+
+  .btn-rubber:hover {
+    background-position: right center;
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.5);
+  }
+
+  .btn-rubber:active {
+    transform: scale(0.90);
+  }
+
+  .btn-pix-copiar {
+    background: #111;
+    color: #D4AF37;
+    font-weight: bold;
+    border: 1px solid rgba(212, 175, 55, 0.5);
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 15px;
+    transition: 0.2s;
+  }
+  .btn-pix-copiar:hover {
+    background: #222;
+    transform: scale(1.02);
+  }
+
+  /* LAYOUT 50/50 */
+  .split-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    padding: 30px 5%;
+    flex: 1;
+  }
+
+  .coffee-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding-right: 15px;
+  }
+
+  .coffee-list::-webkit-scrollbar { width: 6px; }
+  .coffee-list::-webkit-scrollbar-track { background: transparent; }
+  .coffee-list::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.5); border-radius: 10px; }
+
+  .coffee-card {
+    padding: 20px;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+  }
+  
+  .coffee-card:hover {
+    background: rgba(212, 175, 55, 0.1);
+    transform: translateX(10px);
+  }
+
+  .coffee-card.active {
+    border-left: 6px solid #D4AF37;
+    background: rgba(212, 175, 55, 0.15);
+  }
+
+  .details-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    position: sticky;
+    top: 30px;
+    height: fit-content;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 5%;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .input-glass {
+    width: 100%;
+    padding: 15px;
+    margin-bottom: 15px;
+    background: rgba(255,255,255,0.8);
+    border: 1px solid rgba(212, 175, 55, 0.5);
+    border-radius: 10px;
+    color: #111;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .input-glass:focus {
+    border-color: #D4AF37;
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+  }
+
+  @media (max-width: 900px) {
+    .split-layout { grid-template-columns: 1fr; }
+    .details-panel { position: relative; top: 0; }
+  }
+`;
+
+const formatarMoeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// =========================================================================
+// CONFIGURAÇÕES REAIS DA LOJA
+// =========================================================================
+const WHATSAPP_LOJA = "5541988495454"; 
+const CHAVE_PIX_ALEATORIA = "00020126580014br.gov.bcb.pix0136COLOQUE-SUA-CHAVE-AQUI-5204000053039865802BR5925Marcelli Matilda Cafe6009Curitiba62070503***63040000"; 
+// =========================================================================
+
 const LojaVirtual = () => {
     const [produtos, setProdutos] = useState([]);
+    const [selecionado, setSelecionado] = useState(null);
     const [carrinho, setCarrinho] = useState([]);
-    const [modalPixAberto, setModalPixAberto] = useState(false);
-    const [cliente, setCliente] = useState({ nome: '', whats: '', entrega: 'uber_municipal' });
-    const [pedidoAtual, setPedidoAtual] = useState(null);
-    const [qrCodeData, setQrCodeData] = useState('');
+    const [modalAberto, setModalAberto] = useState(false);
+    const [sucessoCheckout, setSucessoCheckout] = useState(null); 
+    const [formCheckout, setFormCheckout] = useState({ cliente_nome: '', cliente_whats: '', metodo_pagamento: 'pix' });
 
     useEffect(() => {
-        carregarProdutos();
+        api.get('/products')
+            .then(res => {
+                setProdutos(res.data);
+                if (res.data.length > 0) setSelecionado(res.data[0]); 
+            })
+            .catch(err => console.error(err));
     }, []);
 
-    const carregarProdutos = async () => {
-        try {
-            const res = await api.get('/products');
-            setProdutos(res.data);
-        } catch (error) {
-            console.error("Erro ao carregar a vitrine de produtos:", error);
-        }
-    };
-
-    const gerarPayloadPix = (chavePix, valor, nome, cidade) => {
-        const formatSize = (str) => String(str.length).padStart(2, '0');
-        const gui = '0014br.gov.bcb.pix';
-        const chave = `01${formatSize(chavePix)}${chavePix}`;
-        const merchantAccount = `26${formatSize(gui + chave)}${gui}${chave}`;
-        const payloadBase = ['000201', '26' + formatSize(merchantAccount.length) + merchantAccount, '52040000', '5303986', `54${formatSize(valor.toFixed(2))}${valor.toFixed(2)}`, '5802BR', `59${formatSize(nome)}${nome}`, `60${formatSize(cidade)}${cidade}`, '62070503***', '6304'].join('');
-        let crc = 0xFFFF;
-        for (let i = 0; i < payloadBase.length; i++) {
-            crc ^= payloadBase.charCodeAt(i) << 8;
-            for (let j = 0; j < 8; j++) { 
-                if ((crc & 0x8000) !== 0) 
-                    crc = (crc << 1) ^ 0x1021; 
-                else 
-                    crc = crc << 1; 
-            }
-        }
-        return payloadBase + (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
-    };
-
-    const addAoCarrinho = (p) => {
-        const ex = carrinho.find(i => i.id === p.id);
-        if (ex && ex.qtd >= p.estoque_pacotes) {
-            alert(`Temos apenas ${p.estoque_pacotes} unidades disponíveis deste item em stock.`);
-            return;
-        }
-        if (ex) 
-            setCarrinho(carrinho.map(i => i.id === p.id ? { ...i, qtd: i.qtd + 1 } : i));
-        else 
-            setCarrinho([...carrinho, { ...p, qtd: 1 }]);
-    };
-
-    const removerDoCarrinho = (id) => setCarrinho(carrinho.filter(i => i.id !== id));
-    const total = carrinho.reduce((acc, i) => acc + (i.preco_venda * i.qtd), 0);
-
-    const finalizarPedido = async () => {
-        if (!cliente.nome || !cliente.whats) {
-            return alert('Por favor, preencha o seu Nome e o número de WhatsApp!');
-        }
+    const adicionarAoCarrinho = () => {
+        if (!selecionado) return;
+        const itemExistente = carrinho.find(item => item.product_id === selecionado.id);
         
-        try {
-            const res = await api.post('/orders', { 
-                items: carrinho.map(i => ({ product_id: i.id, quantidade: i.qtd })),
-                metodo_pagamento: 'pix',
-                cliente_nome: cliente.nome,
-                cliente_whats: cliente.whats,
-                metodo_entrega: cliente.entrega
-            });
-
-            const pixData = gerarPayloadPix('41988495454', res.data.total, 'MARCELLI', 'CURITIBA');
-            
-            let msgLogistica = cliente.entrega === 'uber_municipal' 
-                ? 'Gostaria que enviasse pelo Uber Flash saindo do Mercado Municipal (calcularemos a taxa)' 
-                : 'Vou retirar em mãos diretamente na loja';
-                
-            const linkWhats = `https://wa.me/5541988495454?text=${encodeURIComponent(`Olá Marcelli! Sou ${cliente.nome}. Fiz o pedido #${res.data.orderId} no valor de R$ ${res.data.total.toFixed(2)}.\n\nLogística: ${msgLogistica}.\n\nSegue o comprovante do PIX:`)}`;
-
-            setQrCodeData(pixData);
-            setPedidoAtual({ ...res.data, link_whatsapp: linkWhats });
-            setCarrinho([]);
-            setModalPixAberto(true);
-            
-            carregarProdutos();
-        } catch (e) {
-            alert(e.response?.data?.erro || 'Erro ao processar o checkout. Verifique a disponibilidade dos itens.');
+        if (itemExistente) {
+            setCarrinho(carrinho.map(item => item.product_id === selecionado.id ? { ...item, quantidade: item.quantidade + 1 } : item));
+        } else {
+            setCarrinho([...carrinho, { product_id: selecionado.id, nome: selecionado.nome, preco_venda: selecionado.preco_venda, quantidade: 1 }]);
         }
+        alert(`${selecionado.nome} adicionado ao carrinho!`);
+    };
+
+    // 🔥 NOVA FUNÇÃO: REMOVER ITEM OU DIMINUIR QUANTIDADE
+    const removerDoCarrinho = (productId) => {
+        setCarrinho(carrinho.map(item => {
+            if (item.product_id === productId) {
+                return { ...item, quantidade: item.quantidade - 1 };
+            }
+            return item;
+        }).filter(item => item.quantidade > 0)); // Remove do array se zerar
+    };
+
+    const totalCarrinho = carrinho.reduce((acc, item) => acc + (parseFloat(item.preco_venda) * item.quantidade), 0);
+
+    const finalizarCompra = async (e) => {
+        e.preventDefault();
+        try {
+            const res = await api.post('/orders', { items: carrinho, ...formCheckout });
+            
+            setSucessoCheckout({
+                pedido_id: res.data.orderId,
+                total: res.data.total,
+                metodo: formCheckout.metodo_pagamento,
+                nome_cliente: formCheckout.cliente_nome
+            });
+            
+            setCarrinho([]); 
+            setFormCheckout({ cliente_nome: '', cliente_whats: '', metodo_pagamento: 'pix' });
+        } catch (error) {
+            alert(error.response?.data?.erro || 'Erro ao finalizar pedido.');
+        }
+    };
+
+    const copiarChavePix = () => {
+        navigator.clipboard.writeText(CHAVE_PIX_ALEATORIA)
+            .then(() => alert('Chave PIX Aleatória copiada com sucesso! Cole no app do seu banco.'))
+            .catch(() => alert('Erro ao copiar a chave PIX. Tente selecionar o texto manualmente.'));
+    };
+
+    const enviarParaWhatsApp = () => {
+        if (!sucessoCheckout) return;
+        
+        const texto = `☕ Olá, Marcelli! Sou ${sucessoCheckout.nome_cliente}.\n\nAcabei de registrar o Pedido *#${sucessoCheckout.pedido_id}* na loja virtual.\n\n*Valor Total:* R$ ${formatarMoeda(sucessoCheckout.total)}\n*Pagamento:* ${sucessoCheckout.metodo.toUpperCase()}.\n\nEstou enviando esta mensagem para confirmar meu pedido. Aguardo as instruções para envio do comprovante ou confirmação de pagamento!`;
+        const linkWhats = `https://wa.me/${WHATSAPP_LOJA}?text=${encodeURIComponent(texto)}`;
+        
+        window.open(linkWhats, '_blank');
+        
+        setSucessoCheckout(null);
+        setModalAberto(false);
+    };
+
+    const fecharModalGeral = () => {
+        setModalAberto(false);
+        setSucessoCheckout(null);
     };
 
     return (
-        <div style={{ background: 'linear-gradient(135deg, #241610 0%, #0a0705 50%, #170d08 100%)', minHeight: '100vh', color: '#E2E8F0', fontFamily: '"Georgia", serif', position: 'relative', overflowX: 'hidden' }}>
-            <div style={{ position: 'absolute', top: '10%', left: '-10%', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)', filter: 'blur(60px)', zIndex: 0, borderRadius: '50%' }}></div>
-            <div style={{ position: 'absolute', bottom: '20%', right: '-10%', width: '600px', height: '600px', background: 'radial-gradient(circle, rgba(184,134,11,0.06) 0%, transparent 70%)', filter: 'blur(80px)', zIndex: 0, borderRadius: '50%' }}></div>
+        <div className="page-container">
+            <style>{customStyles}</style>
 
-            <style>{`
-                .gold-title { font-family: 'Playfair Display', serif; font-weight: 900; color: #E8D38C; text-shadow: 0 2px 10px rgba(212,175,55,0.2); }
-                .text-body { font-family: 'Lora', serif; line-height: 1.8; color: #C0C0C0; font-size: 1.05rem; }
-                .text-gradient { background: linear-gradient(135deg, #F9E596, #C79A3B); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; }
+            {/* HEADER */}
+            <header className="header glass-panel" style={{ borderRadius: 0, borderTop: 'none', borderLeft: 'none', borderRight: 'none' }}>
+                <h1 style={{ margin: 0, fontWeight: 900, color: '#000', letterSpacing: '2px' }}>
+                    MATILDA <span style={{ color: '#D4AF37' }}>CAFÉ</span>
+                </h1>
                 
-                .page-layout { display: flex; padding: 0; min-height: 100vh; position: relative; zIndex: 1; }
-                .content-area { flex: 1; padding: 0; overflow-y: auto; scroll-behavior: smooth; }
-                
-                .glass-sidebar { width: 420px; background: rgba(20, 12, 8, 0.45); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-left: 1px solid rgba(255, 255, 255, 0.05); box-shadow: -10px 0 40px rgba(0,0,0,0.5); position: sticky; top: 0; height: 100vh; overflow-y: auto; font-family: sans-serif; padding: 2.5rem; }
-                
-                .btn-gold { 
-                    background: linear-gradient(135deg, rgba(212,175,55,0.85), rgba(184,134,11,0.85)); 
-                    backdrop-filter: blur(8px);
-                    color: #110A05; 
-                    border: 1px solid rgba(255, 255, 255, 0.2); 
-                    padding: 16px; 
-                    border-radius: 12px; 
-                    font-weight: 900; 
-                    font-size: 0.85rem; 
-                    cursor: pointer; 
-                    text-transform: uppercase; 
-                    letter-spacing: 2px; 
-                    width: 100%; 
-                    box-shadow: 0 8px 25px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.2);
-                    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                }
-                .btn-gold:hover { 
-                    transform: translateY(-4px) scale(1.02); 
-                    box-shadow: 0 15px 35px rgba(212,175,55,0.3), inset 0 2px 4px rgba(255,255,255,0.3); 
-                    background: linear-gradient(135deg, rgba(222,185,65,0.95), rgba(194,144,21,0.95));
-                }
-                .btn-gold:active { 
-                    transform: translateY(2px) scale(0.97);
-                    box-shadow: 0 5px 15px rgba(0,0,0,0.4);
-                }
-                .btn-gold:disabled { background: rgba(40,40,40,0.5); color: #777; cursor: not-allowed; transform: none; box-shadow: none; border-color: transparent; }
-                
-                .btn-outline-gold { 
-                    background: rgba(212,175,55,0.05); 
-                    backdrop-filter: blur(4px);
-                    border: 1px solid rgba(212,175,55,0.4); 
-                    color: #E8D38C; 
-                    padding: 12px 24px; 
-                    border-radius: 30px; 
-                    cursor: pointer; 
-                    text-transform: uppercase; 
-                    letter-spacing: 2px; 
-                    font-size: 0.75rem; 
-                    font-weight: bold; 
-                    width: 100%; 
-                    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                }
-                .btn-outline-gold:hover { 
-                    background: rgba(212,175,55,0.15); 
-                    transform: translateY(-3px) scale(1.03); 
-                    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-                    border-color: rgba(212,175,55,0.8);
-                }
-                .btn-outline-gold:active { transform: translateY(1px) scale(0.98); }
-                
-                .input-luxury { 
-                    background: rgba(10, 5, 3, 0.5); 
-                    border: 1px solid rgba(255, 255, 255, 0.08); 
-                    border-radius: 10px; 
-                    padding: 14px 16px; 
-                    color: #fff; 
-                    width: 100%; 
-                    margin-bottom: 15px; 
-                    outline: none; 
-                    font-family: sans-serif; 
-                    font-size: 0.9rem; 
-                    transition: all 0.3s ease; 
-                    box-sizing: border-box; 
-                    box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
-                }
-                .input-luxury:focus { 
-                    border-color: rgba(212,175,55,0.6); 
-                    box-shadow: inset 0 2px 5px rgba(0,0,0,0.5), 0 0 15px rgba(212,175,55,0.15); 
-                    background: rgba(20, 12, 8, 0.8);
-                }
-                
-                .glass-card { 
-                    background: rgba(25, 17, 12, 0.3); 
-                    backdrop-filter: blur(12px); 
-                    -webkit-backdrop-filter: blur(12px); 
-                    padding: 3rem 2.5rem; 
-                    border-radius: 20px; 
-                    border: 1px solid rgba(255, 255, 255, 0.06); 
-                    display: flex; 
-                    flex-direction: column; 
-                    align-items: center; 
-                    position: relative; 
-                    overflow: hidden; 
-                    box-shadow: 0 15px 35px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
-                    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                }
-                .glass-card:hover { 
-                    transform: translateY(-8px); 
-                    border-color: rgba(212,175,55,0.3); 
-                    box-shadow: 0 25px 50px rgba(0,0,0,0.6), inset 0 1px 0 rgba(212,175,55,0.2); 
-                    background: rgba(30, 20, 15, 0.45);
-                }
-                
-                .embalagem { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); transition: transform 0.4s ease; }
-                .glass-card:hover .embalagem { transform: scale(1.05); }
-                .pacote-tradicional { width: 170px; height: 260px; border-radius: 12px 12px 20px 20px; background: linear-gradient(145deg, #1c140e, #0a0705); border: 1px solid rgba(255,255,255,0.05); }
-                .sache-avulso { width: 120px; height: 130px; border-radius: 10px; background: linear-gradient(145deg, #221812, #0d0907); border: 1px solid rgba(255,255,255,0.08); margin-top: 40px; margin-bottom: 30px; }
-                
-                .selo-topo { width: 100%; height: 25px; border-radius: 10px 10px 0 0; background: linear-gradient(90deg, #140d0a, #241812, #140d0a); border-bottom: 2px dashed rgba(212,175,55,0.2); }
-                .rotulo-interno { width: 75%; background: rgba(10, 6, 4, 0.8); backdrop-filter: blur(4px); border: 1px solid rgba(212,175,55,0.5); padding: 15px 10px; text-align: center; border-radius: 8px; box-shadow: inset 0 0 15px rgba(212,175,55,0.05); }
-                
-                .badge-stock { position: absolute; top: 20px; right: 20px; background: linear-gradient(135deg, rgba(212,175,55,0.1), rgba(184,134,11,0.05)); backdrop-filter: blur(5px); color: #E8D38C; padding: 6px 14px; border-radius: 20px; font-size: 0.7rem; font-family: sans-serif; letter-spacing: 1px; border: 1px solid rgba(212,175,55,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+                <button className="btn-rubber" onClick={() => setModalAberto(true)}>
+                    <i className="fas fa-shopping-bag" style={{ marginRight: '8px' }}></i>
+                    Carrinho ({carrinho.length}) - R$ {formatarMoeda(totalCarrinho)}
+                </button>
+            </header>
 
-                @media (max-width: 1024px) {
-                    .page-layout { flex-direction: column; }
-                    .glass-sidebar { width: 100%; height: auto; position: relative; border-left: none; border-top: 1px solid rgba(255,255,255,0.05); }
-                    .content-area { overflow-y: visible; }
-                    .coffees-grid { grid-template-columns: 1fr !important; gap: 2rem; }
-                }
-            `}</style>
-
-            <div className="page-layout">
-                <div className="content-area">
-                    <header style={{ padding: '1.5rem 4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(20, 12, 8, 0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
-                        <h1 className="gold-title" style={{ margin: 0, fontSize: '1.4rem', letterSpacing: '4px', textTransform: 'uppercase' }}>
-                            <i className="fas fa-crown" style={{ marginRight: '12px', fontSize: '1.1rem' }}></i> MATILDA
-                        </h1>
-                        <div style={{ fontFamily: 'sans-serif', fontSize: '0.75rem', color: '#D4AF37', letterSpacing: '2px', fontWeight: 'bold' }}>CURITIBA • ORIGEM SUL DE MINAS</div>
-                    </header>
-
-                    <section style={{ padding: '8rem 4rem', position: 'relative', zIndex: 2 }}>
-                        <div style={{ maxWidth: '750px', margin: '0 auto', textAlign: 'center' }}>
-                            <h2 className="gold-title" style={{ fontSize: '3.8rem', marginBottom: '1.5rem', lineHeight: 1.15 }}>
-                                A bebida das<br/>mentes brilhantes.
-                            </h2>
-                            <p className="text-body" style={{ fontSize: '1.15rem', maxWidth: '580px', margin: '0 auto', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                                Lotes artesanais cultivados sob condições ideais de altitude, colhidos seletivamente e torrados sob medida para preservar a complexidade sensorial de uma pontuação de 84 pontos SCA.
-                            </p>
-                        </div>
-                    </section>
-
-                    <section style={{ padding: '2rem 4rem 6rem 4rem', position: 'relative', zIndex: 2 }}>
-                        <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
-                            <h3 className="gold-title" style={{ fontSize: '1.8rem', letterSpacing: '3px', textTransform: 'uppercase' }}>Coleção Disponível</h3>
-                            <div style={{ width: '35px', height: '2px', background: 'linear-gradient(90deg, transparent, #D4AF37, transparent)', margin: '20px auto', borderRadius: '2px' }}></div>
-                        </div>
-
-                        {produtos.length === 0 ? (
-                            <div className="glass-card" style={{ maxWidth: '550px', margin: '0 auto', textAlign: 'center', padding: '4rem 2rem' }}>
-                                <i className="fas fa-hourglass-half" style={{ fontSize: '2.5rem', marginBottom: '1.5rem', color: '#D4AF37', opacity: 0.8, filter: 'drop-shadow(0 0 10px rgba(212,175,55,0.3))' }}></i>
-                                <h3 style={{ fontFamily: 'sans-serif', color: '#fff', letterSpacing: '1px', marginBottom: '12px', fontSize: '1.2rem' }}>Torra de Lotes em Curso</h3>
-                                <p className="text-body" style={{ fontSize: '0.95rem' }}>Nossos grãos especiais estão no ciclo final de maturação e torrefação. Fique atento às próximas liberações de stock no ERP.</p>
+            {/* LAYOUT 50/50 */}
+            <main className="split-layout">
+                <div className="coffee-list">
+                    <h2 style={{ color: '#D4AF37', borderBottom: '2px solid #D4AF37', paddingBottom: '10px' }}>NOSSAS OPÇÕES</h2>
+                    
+                    {produtos.length === 0 ? (
+                        <p>Nenhum produto disponível no momento.</p>
+                    ) : (
+                        produtos.map(p => (
+                            <div 
+                                key={p.id} 
+                                className={`glass-panel coffee-card ${selecionado?.id === p.id ? 'active' : ''}`}
+                                onClick={() => setSelecionado(p)}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <h3 style={{ margin: '0 0 5px 0', fontWeight: 800 }}>{p.nome}</h3>
+                                        <span style={{ fontSize: '0.85rem', color: '#666' }}>{p.tipo === 'sache' ? 'Sachê / Drip' : 'Pacote 250g'}</span>
+                                    </div>
+                                    <div style={{ fontWeight: 900, color: '#D4AF37', fontSize: '1.2rem' }}>
+                                        R$ {formatarMoeda(p.preco_venda)}
+                                    </div>
+                                </div>
                             </div>
+                        ))
+                    )}
+                </div>
+
+                <div className="details-panel glass-panel">
+                    {selecionado ? (
+                        <>
+                            <div style={{ marginBottom: '30px' }}>
+                                <i className="fas fa-coffee" style={{ fontSize: '4rem', color: '#D4AF37', marginBottom: '20px' }}></i>
+                                <h1 style={{ fontWeight: 900, fontSize: '2.5rem', margin: '0 0 10px 0', color: '#000' }}>
+                                    {selecionado.nome}
+                                </h1>
+                                <h2 style={{ color: '#D4AF37', fontWeight: 800, fontSize: '2rem', margin: '0 0 20px 0' }}>
+                                    R$ {formatarMoeda(selecionado.preco_venda)}
+                                </h2>
+                                
+                                <div style={{ background: 'rgba(212, 175, 55, 0.05)', padding: '20px', borderRadius: '15px', border: '1px dashed rgba(212, 175, 55, 0.5)', marginBottom: '30px' }}>
+                                    <p style={{ lineHeight: '1.8', margin: 0, fontSize: '1.1rem', color: '#333' }}>
+                                        {selecionado.descricao}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button className="btn-rubber" style={{ fontSize: '1.2rem', padding: '20px' }} onClick={adicionarAoCarrinho}>
+                                ADICIONAR AO CARRINHO
+                            </button>
+                        </>
+                    ) : (
+                        <div style={{ color: '#999' }}>
+                            <i className="fas fa-hand-pointer" style={{ fontSize: '3rem', marginBottom: '20px' }}></i>
+                            <h2>Selecione um produto ao lado para ver os detalhes.</h2>
+                        </div>
+                    )}
+                </div>
+            </main>
+
+            {/* MODAL DE CHECKOUT */}
+            {modalAberto && (
+                <div className="modal-overlay">
+                    <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '40px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        
+                        {/* ESTÁGIO 1: SUCESSO E PIX */}
+                        {sucessoCheckout ? (
+                            <div style={{ textAlign: 'center' }}>
+                                <i className="fas fa-check-circle" style={{ fontSize: '3rem', color: '#25D366', marginBottom: '10px' }}></i>
+                                <h2 style={{ color: '#000', fontWeight: 900 }}>Pedido #{sucessoCheckout.pedido_id} Registrado!</h2>
+                                
+                                {sucessoCheckout.metodo === 'pix' ? (
+                                    <div style={{ background: 'rgba(212,175,55,0.1)', padding: '20px', borderRadius: '15px', margin: '20px 0' }}>
+                                        <h3 style={{ margin: '0 0 10px 0', color: '#D4AF37' }}>Pague via PIX</h3>
+                                        
+                                        <img 
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(CHAVE_PIX_ALEATORIA)}`} 
+                                            alt="QR Code PIX" 
+                                            style={{ borderRadius: '10px', marginBottom: '15px' }} 
+                                        />
+                                        
+                                        <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '0.85rem' }}>Ou copie a chave aleatória abaixo:</p>
+                                        <button className="btn-pix-copiar" type="button" onClick={copiarChavePix}>
+                                            <i className="fas fa-copy" style={{ marginRight: '8px' }}></i>
+                                            COPIAR CHAVE PIX
+                                        </button>
+
+                                        <p style={{ margin: '15px 0 0 0', fontSize: '1.1rem', color: '#25D366', fontWeight: 'bold' }}>Valor do Pedido: R$ {formatarMoeda(sucessoCheckout.total)}</p>
+                                    </div>
+                                ) : (
+                                    <div style={{ background: 'rgba(212,175,55,0.1)', padding: '20px', borderRadius: '15px', margin: '20px 0' }}>
+                                        <h3 style={{ margin: '0', color: '#D4AF37' }}>Separe o valor de R$ {formatarMoeda(sucessoCheckout.total)} para a entrega.</h3>
+                                    </div>
+                                )}
+
+                                <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '20px' }}>
+                                    Envie seu pedido para o nosso WhatsApp para validarmos o pagamento e a entrega!
+                                </p>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    <button className="btn-rubber" style={{ background: 'linear-gradient(135deg, #25D366, #128C7E)', color: '#fff' }} onClick={enviarParaWhatsApp}>
+                                        <i className="fab fa-whatsapp" style={{ marginRight: '10px' }}></i> ENVIAR PEDIDO NO WHATSAPP
+                                    </button>
+                                    <button className="btn-rubber" style={{ background: '#E2E8F0', color: '#333' }} onClick={fecharModalGeral}>
+                                        FECHAR
+                                    </button>
+                                </div>
+                            </div>
+
+                        /* ESTÁGIO 2: CARRINHO VAZIO */
+                        ) : carrinho.length === 0 ? (
+                            <div style={{ textAlign: 'center' }}>
+                                <i className="fas fa-shopping-cart" style={{ fontSize: '3rem', color: '#ccc', marginBottom: '20px' }}></i>
+                                <h2 style={{ color: '#000', fontWeight: 900, marginBottom: '20px' }}>Seu carrinho está vazio.</h2>
+                                <button className="btn-rubber" style={{ width: '100%', background: '#E2E8F0', color: '#333' }} onClick={fecharModalGeral}>
+                                    VOLTAR PARA A LOJA
+                                </button>
+                            </div>
+
+                        /* ESTÁGIO 3: FORMULÁRIO DE COMPRA */
                         ) : (
-                            <div className="coffees-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '3rem', maxWidth: '1200px', margin: '0 auto' }}>
-                                {produtos.map(p => {
-                                    const isSache = Number(p.peso_unitario_kg) <= 0.020;
+                            <form onSubmit={finalizarCompra}>
+                                <h2 style={{ textAlign: 'center', color: '#000', fontWeight: 900, marginBottom: '30px' }}>Finalizar Pedido</h2>
+                                
+                                <div style={{ background: 'rgba(212,175,55,0.1)', padding: '15px', borderRadius: '10px', marginBottom: '20px' }}>
+                                    <h4 style={{ margin: '0 0 10px 0', color: '#D4AF37' }}>Resumo:</h4>
                                     
-                                    return (
-                                        <div key={p.id} className="glass-card">
-                                            <div className="badge-stock">{p.estoque_pacotes} ITENS EM STOCK</div>
-                                            
-                                            <div className={`embalagem ${isSache ? 'sache-10g' : 'pacote-tradicional'}`}>
-                                                {!isSache && <div className="selo-topo"></div>}
-                                                <div className="rotulo-interno" style={{ marginTop: isSache ? '0' : '20px' }}>
-                                                    <div style={{ color: '#fff', fontWeight: 900, letterSpacing: '2px', fontSize: isSache ? '0.75rem' : '1.05rem', textTransform: 'uppercase' }}>Matilda</div>
-                                                    <div style={{ color: '#D4AF37', fontSize: '0.55rem', letterSpacing: '2px', marginTop: '4px', fontWeight: 'bold' }}>{isSache ? 'DRIP COFFEE' : 'CAFÉ ESPECIAL'}</div>
-                                                    <div style={{ color: '#aaa', fontSize: '0.55rem', marginTop: '12px', letterSpacing: '1px', fontWeight: 'bold' }}>{isSache ? '10G NET' : '250G NET'}</div>
-                                                </div>
-                                            </div>
-
-                                            <div style={{ textAlign: 'center', marginTop: '2.5rem', flex: 1, width: '100%', display: 'flex', flexDirection: 'column' }}>
-                                                <h4 className="gold-title" style={{ fontSize: '1.5rem', marginBottom: '0.8rem', minHeight: '40px' }}>{p.nome}</h4>
-                                                <p className="text-body" style={{ fontSize: '0.95rem', marginBottom: '2rem', flex: 1 }}>{p.descricao}</p>
-                                                
-                                                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)', textAlign: 'left', marginBottom: '2rem', fontFamily: 'sans-serif' }}>
-                                                    <div style={{ fontSize: '0.7rem', color: '#D4AF37', textAlign: 'center', marginBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Laudo Sensorial</div>
-                                                    <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}><span>Procedência:</span> <span style={{ color: '#ddd' }}>Ouro Verde (MG)</span></div>
-                                                    <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}><span>Variedade:</span> <span style={{ color: '#ddd' }}>Catuaí Vermelho</span></div>
-                                                    <div style={{ fontSize: '0.8rem', color: '#888', display: 'flex', justifyContent: 'space-between' }}><span>Classificação:</span> <span style={{ color: '#D4AF37', fontWeight: 'bold' }}>84 Pontos SCA</span></div>
-                                                </div>
-
-                                                <div className="text-gradient" style={{ fontSize: '2.2rem', marginBottom: '1.5rem', fontFamily: 'sans-serif', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
-                                                    <span style={{ fontSize: '1rem', color: '#888', marginRight: '6px', verticalAlign: 'middle', fontWeight: 'normal' }}>R$</span>
-                                                    {Number(p.preco_venda).toFixed(2)}
-                                                </div>
-                                                
-                                                <button onClick={() => addAoCarrinho(p)} className="btn-outline-gold">
-                                                    Adicionar à Sacola
+                                    {/* LISTAGEM COM BOTÃO REMOVER INTEGRADOO */}
+                                    {carrinho.map((item, idx) => (
+                                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '0.9rem', fontWeight: 600 }}>
+                                            <span style={{ color: '#000' }}>{item.quantidade}x {item.nome}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                                <span style={{ color: '#555' }}>R$ {formatarMoeda(item.preco_venda * item.quantidade)}</span>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => removerDoCarrinho(item.product_id)} 
+                                                    style={{ background: 'transparent', border: 'none', color: '#FF4B4B', cursor: 'pointer', padding: '0 5px', fontSize: '1rem' }}
+                                                    title="Remover uma unidade"
+                                                >
+                                                    <i className="fas fa-trash-alt"></i>
                                                 </button>
                                             </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </section>
-                </div>
-
-                <aside className="glass-sidebar">
-                    <h2 style={{ fontSize: '1.1rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '1.2rem', color: '#E8D38C', fontFamily: 'sans-serif', margin: '0 0 2rem 0', textTransform: 'uppercase', letterSpacing: '2px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <i className="fas fa-shopping-bag" style={{ fontSize: '0.95rem' }}></i> Itens Escolhidos
-                    </h2>
-
-                    <div style={{ minHeight: '42vh', marginBottom: '2rem' }}>
-                        {carrinho.length === 0 ? (
-                            <div style={{ textAlign: 'center', color: '#333', marginTop: '6rem' }}>
-                                <i className="fas fa-feather-alt" style={{ fontSize: '2.5rem', marginBottom: '1.2rem', opacity: 0.2, color: '#D4AF37' }}></i>
-                                <p style={{ fontFamily: '"Georgia", serif', fontStyle: 'italic', fontSize: '0.95rem', color: '#777' }}>A sua sacola está vazia.<br/>Mapeie as notas sensoriais acima.</p>
-                            </div>
-                        ) : (
-                            carrinho.map(i => (
-                                <div key={i.id} style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', padding: '16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.3s ease' }}>
-                                    <div>
-                                        <div style={{ fontWeight: 'bold', color: '#eee', fontSize: '0.9rem', marginBottom: '4px' }}>{i.nome}</div>
-                                        <div style={{ color: '#D4AF37', fontSize: '0.8rem', fontFamily: 'sans-serif', letterSpacing: '0.5px' }}>{i.qtd}x R$ {Number(i.preco_venda).toFixed(2)}</div>
-                                    </div>
-                                    <button onClick={() => removerDoCarrinho(i.id)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#888', cursor: 'pointer', padding: '8px 12px', borderRadius: '6px', transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} onMouseOver={e => { e.currentTarget.style.color = '#F44336'; e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.background = 'rgba(244, 67, 54, 0.1)'; }} onMouseOut={e => { e.currentTarget.style.color = '#888'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}>
-                                        <i className="fas fa-times" style={{ fontSize: '0.85rem' }}></i>
-                                    </button>
+                                    ))}
+                                    
+                                    <h3 style={{ margin: '15px 0 0 0', borderTop: '1px solid rgba(212,175,55,0.3)', paddingTop: '10px', textAlign: 'right', color: '#000' }}>
+                                        Total: R$ {formatarMoeda(totalCarrinho)}
+                                    </h3>
                                 </div>
-                            ))
+
+                                <input className="input-glass" type="text" placeholder="Seu Nome Completo" value={formCheckout.cliente_nome} onChange={e => setFormCheckout({...formCheckout, cliente_nome: e.target.value})} required />
+                                <input className="input-glass" type="text" placeholder="WhatsApp (Apenas Números)" value={formCheckout.cliente_whats} onChange={e => setFormCheckout({...formCheckout, cliente_whats: e.target.value})} required />
+                                
+                                <select className="input-glass" value={formCheckout.metodo_pagamento} onChange={e => setFormCheckout({...formCheckout, metodo_pagamento: e.target.value})}>
+                                    <option value="pix">Pagamento via PIX</option>
+                                    <option value="dinheiro">Dinheiro na Entrega</option>
+                                </select>
+
+                                <div style={{ display: 'flex', gap: '15px', marginTop: '20px' }}>
+                                    <button type="submit" className="btn-rubber" style={{ flex: 2 }}>GERAR PEDIDO</button>
+                                    <button type="button" className="btn-rubber" style={{ flex: 1, background: '#E2E8F0', color: '#333' }} onClick={fecharModalGeral}>VOLTAR</button>
+                                </div>
+                            </form>
                         )}
-                    </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.3rem', fontWeight: 900, marginBottom: '2rem', color: '#fff', fontFamily: 'sans-serif', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1.5rem', alignItems: 'center' }}>
-                        <span style={{ letterSpacing: '1px', color: '#aaa', fontSize: '0.9rem', fontWeight: 'bold' }}>SUBTOTAL</span>
-                        <span className="text-gradient">R$ {total.toFixed(2)}</span>
-                    </div>
-
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '24px 20px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.2)' }}>
-                        <p style={{ color: '#D4AF37', fontSize: '0.75rem', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 'bold', textAlign: 'center' }}>Logística de Envio</p>
-                        
-                        <input className="input-luxury" placeholder="Nome Completo" value={cliente.nome} onChange={e => setCliente({...cliente, nome: e.target.value})} />
-                        <input className="input-luxury" placeholder="WhatsApp (Com DDD)" value={cliente.whats} onChange={e => setCliente({...cliente, whats: e.target.value})} />
-                        
-                        <select className="input-luxury" value={cliente.entrega} onChange={e => setCliente({...cliente, entrega: e.target.value})} style={{ cursor: 'pointer', appearance: 'none', backgroundImage: 'linear-gradient(45deg, transparent 50%, #D4AF37 50%), linear-gradient(135deg, #D4AF37 50%, transparent 50%)', backgroundPosition: 'calc(100% - 20px) calc(1em + 2px), calc(100% - 15px) calc(1em + 2px)', backgroundSize: '5px 5px, 5px 5px', backgroundRepeat: 'no-repeat' }}>
-                            <option value="uber_municipal" style={{background: '#111'}}>🚗 Despachar via Uber Flash</option>
-                            <option value="retirada" style={{background: '#111'}}>🏪 Retirada Presencial na Loja</option>
-                        </select>
-
-                        <button className="btn-gold" style={{ marginTop: '15px' }} onClick={finalizarPedido} disabled={carrinho.length === 0}>
-                            GERAR QR CODE PIX
-                        </button>
-                    </div>
-                </aside>
-            </div>
-
-            {modalPixAberto && pedidoAtual && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(25px)', WebkitBackdropFilter: 'blur(25px)' }}>
-                    <div style={{ background: 'rgba(25, 17, 12, 0.7)', border: '1px solid rgba(212,175,55,0.3)', padding: '3.5rem 2.5rem', borderRadius: '24px', textAlign: 'center', maxWidth: '420px', width: '90%', boxShadow: '0 30px 60px rgba(0,0,0,0.8), inset 0 2px 10px rgba(255,255,255,0.1)', fontFamily: 'sans-serif', position: 'relative', overflow: 'hidden' }}>
-                        
-                        <div style={{ position: 'absolute', top: '-50px', left: '50%', transform: 'translateX(-50%)', width: '150px', height: '150px', background: 'rgba(212,175,55,0.2)', filter: 'blur(50px)', borderRadius: '50%', zIndex: 0 }}></div>
-
-                        <div style={{ position: 'relative', zIndex: 1 }}>
-                            <div style={{ width: '65px', height: '65px', borderRadius: '50%', background: 'linear-gradient(135deg, rgba(212,175,55,0.15), rgba(184,134,11,0.05))', border: '1px solid rgba(212,175,55,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', color: '#D4AF37', fontSize: '1.8rem', boxShadow: '0 10px 20px rgba(0,0,0,0.3)' }}>
-                                <i className="fab fa-pix"></i>
-                            </div>
-                            <h2 style={{ color: '#fff', fontSize: '1.4rem', marginBottom: '6px', letterSpacing: '0.5px' }}>Pagamento Instantâneo</h2>
-                            <p style={{ color: '#888', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2rem' }}>Pedido Identificado nº {pedidoAtual.orderId}</p>
-                            
-                            <div style={{ background: 'rgba(255,255,255,0.95)', padding: '16px', borderRadius: '16px', display: 'inline-block', margin: '0 0 2rem 0', boxShadow: '0 15px 30px rgba(0,0,0,0.4)' }}>
-                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrCodeData)}`} alt="QR PIX SEGURADO" style={{ display: 'block' }} />
-                            </div>
-
-                            <div style={{ background: 'rgba(0,0,0,0.4)', padding: '16px', borderRadius: '12px', margin: '0 0 2rem 0', wordBreak: 'break-all', border: '1px dashed rgba(212,175,55,0.3)', position: 'relative' }}>
-                                <small style={{ color: '#aaa', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: '8px' }}>Pix Copia e Cola:</small>
-                                <div style={{ color: '#E8D38C', fontSize: '0.8rem', fontFamily: 'monospace', lineHeight: 1.4 }}>{qrCodeData}</div>
-                            </div>
-
-                            <div className="text-gradient" style={{ fontSize: '2.2rem', marginBottom: '2.5rem', fontWeight: 900, filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.5))' }}>R$ {pedidoAtual.total.toFixed(2)}</div>
-
-                            <button className="btn-gold" style={{ marginBottom: '16px', fontSize: '0.9rem', padding: '18px' }} onClick={() => window.open(pedidoAtual.link_whatsapp)}>
-                                <i className="fab fa-whatsapp" style={{ fontSize: '1.2rem', marginRight: '10px', verticalAlign: 'middle' }}></i> ENVIAR COMPROVANTE
-                            </button>
-                            <button onClick={() => setModalPixAberto(false)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: '12px', width: '100%', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '2px', fontWeight: 'bold', transition: 'color 0.3s ease' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#888'}>
-                                Retornar à Loja
-                            </button>
-                        </div>
                     </div>
                 </div>
             )}
