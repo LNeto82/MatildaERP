@@ -60,10 +60,9 @@ async function blindarBancoDeDados() {
             await promisePool.query("ALTER TABLE users MODIFY COLUMN senha VARCHAR(255) NULL"); 
         } catch(e) {}
 
-        // 🔥 EXTERMINADOR: Deleta qualquer produto bugado com estoque absurdo (o fantasma do Cappuccino)
         await promisePool.query("DELETE FROM products WHERE estoque_pacotes > 5000");
 
-        console.log("✅ AUTO-REPARO CONCLUÍDO: Fantasmas deletados! Banco limpo e pronto.");
+        console.log("✅ AUTO-REPARO CONCLUÍDO: Banco limpo e pronto.");
     } catch (error) {
         console.log("⚠️ Sincronização de tabelas: ", error.message);
     }
@@ -75,6 +74,12 @@ blindarBancoDeDados();
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
     const { email, senha } = req.body;
+    
+    const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regexEmail.test(email)) {
+        return res.status(400).json({ erro: 'Formato de e-mail inválido. Verifique o que foi digitado.' });
+    }
+
     try {
         const [users] = await promisePool.query('SELECT * FROM users WHERE email = ?', [email]);
         if (users.length === 0) return res.status(401).json({ erro: 'Credenciais inválidas.' });
@@ -86,6 +91,43 @@ app.post('/api/auth/login', async (req, res) => {
         const token = jwt.sign({ id: user.id, role: user.role, nome: user.nome }, process.env.JWT_SECRET, { expiresIn: '8h' });
         res.json({ token, user: { id: user.id, nome: user.nome, role: user.role } });
     } catch (error) { res.status(500).json({ erro: 'Erro no login.' }); }
+});
+
+// 🔥 ALTERAÇÃO DE SEGURANÇA (E-MAIL E SENHA LGPD)
+app.put('/api/admin/security/:id', verificarToken, verificarAdmin, async (req, res) => {
+    const { novoEmail, senhaAtual, novaSenha } = req.body;
+    const userId = req.params.id;
+
+    try {
+        const [users] = await promisePool.query('SELECT senha FROM users WHERE id = ?', [userId]);
+        if (users.length === 0) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+
+        const senhaValida = await bcrypt.compare(senhaAtual, users[0].senha);
+        if (!senhaValida) return res.status(400).json({ erro: 'A senha atual está incorreta.' });
+
+        if (novoEmail) {
+            const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!regexEmail.test(novoEmail)) return res.status(400).json({ erro: 'O formato do novo e-mail é inválido.' });
+            
+            const [existe] = await promisePool.query('SELECT id FROM users WHERE email = ? AND id != ?', [novoEmail, userId]);
+            if (existe.length > 0) return res.status(400).json({ erro: 'Este e-mail já está em uso.' });
+
+            await promisePool.query('UPDATE users SET email = ? WHERE id = ?', [novoEmail, userId]);
+        }
+
+        if (novaSenha) {
+            const regexSenha = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+            if (!regexSenha.test(novaSenha)) {
+                return res.status(400).json({ erro: 'A senha é muito fraca. Verifique as regras de segurança.' });
+            }
+            const novaSenhaHash = await bcrypt.hash(novaSenha, 10);
+            await promisePool.query('UPDATE users SET senha = ? WHERE id = ?', [novaSenhaHash, userId]);
+        }
+
+        res.json({ mensagem: 'Dados de acesso atualizados com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ erro: error.message });
+    }
 });
 
 app.get('/api/products', async (req, res) => {
@@ -232,7 +274,6 @@ app.get('/api/admin/dashboard/history', verificarToken, verificarAdmin, async (r
     } catch (error) { res.status(500).send(error); }
 });
 
-// 🔥 ATUALIZAÇÃO: Rota do PDV Feira agora aceita valor editado manualmente
 app.post('/api/admin/pos/sale', verificarToken, verificarAdmin, async (req, res) => {
     const { product_id, quantidade, valor_total } = req.body;
     const connection = await promisePool.getConnection();
@@ -243,7 +284,7 @@ app.post('/api/admin/pos/sale', verificarToken, verificarAdmin, async (req, res)
         
         if (produto.controla_estoque && produto.estoque_pacotes < quantidade) throw new Error('Estoque insuficiente para venda na Feira.');
         
-        const valorFinal = parseFloat(valor_total); // Usa o valor que vc digitou (com ou sem desconto)
+        const valorFinal = parseFloat(valor_total); 
         
         await connection.query("INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES ('receita_feira', 'Venda PDV Feira', ?, NOW())", [valorFinal]);
         
@@ -287,7 +328,6 @@ app.get('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, 
     } catch (error) { res.status(500).send(error); }
 });
 
-// A ROTA MESTRE DA PRODUÇÃO (SEM GAMBIARRA NENHUMA)
 app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res) => {
     const { nome, descricao, preco_venda, estoque_pacotes, raw_inventory_id, desperdicio_kg, peso_unitario_kg } = req.body;
     const connection = await promisePool.getConnection();
@@ -301,11 +341,9 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
         const tipo = pesoUnitario <= 0.020 ? 'sache' : (nome.toLowerCase().includes('grão') ? 'grao' : 'moido');
         const desc = descricao || 'Café Especial 100% Arábica';
 
-        // Verifica se é Cappuccino para NÃO abater a matéria-prima (grãos)
         const nomeBusca = nome.toLowerCase();
         const isCappuccino = nomeBusca.includes('capuc') || nomeBusca.includes('cappuc');
 
-        // SÓ DESCONTA O GRÃO DA FÁBRICA SE NÃO FOR CAPPUCCINO
         if (!isCappuccino && raw_inventory_id) {
             const kgLiquido = qtdPacotes * pesoUnitario;
             const kgTotalSaida = kgLiquido + desp;
@@ -319,7 +357,6 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
             await connection.query('UPDATE raw_inventory SET peso_kg = peso_kg - ? WHERE id = ?', [kgTotalSaida, raw_inventory_id]);
         }
 
-        // SALVA O ESTOQUE REAL (Soma o que vc digitou agora com o que já tem lá)
         const [existe] = await connection.query('SELECT id FROM products WHERE nome = ?', [nome]);
         if (existe.length > 0) {
             await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, descricao = ?, tipo = ?, peso_unitario_kg = ?, controla_estoque = true WHERE id = ?', [qtdPacotes, desc, tipo, pesoUnitario, existe[0].id]);

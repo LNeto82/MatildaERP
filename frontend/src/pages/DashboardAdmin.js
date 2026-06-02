@@ -40,21 +40,28 @@ const DashboardAdmin = () => {
     const [modalPDVAberto, setModalPDVAberto] = useState(false);
     const [modalDespesaAberto, setModalDespesaAberto] = useState(false);
     const [modalPedidosAberto, setModalPedidosAberto] = useState(false);
+    const [modalSenhaAberto, setModalSenhaAberto] = useState(false);
 
     const [formPacotes, setFormPacotes] = useState({ nome: '', descricao: '', preco_venda: '', estoque_pacotes: '', raw_inventory_id: '', desperdicio_kg: '', peso_unitario_kg: '0.250' });
     const [formAjuste, setFormAjuste] = useState({ tipo_estoque: 'pacotes', id: '', nova_quantidade: '' });
     const [formPDV, setFormPDV] = useState({ product_id: '', quantidade: 1, valor_total: '' }); 
     const [formGraos, setFormGraos] = useState({ nome_lote: '', peso_kg: '', custo_total: '' });
     const [formDespesa, setFormDespesa] = useState({ descricao: '', valor: '' });
+    
+    // FORMULÁRIO DE SEGURANÇA E ACESSO
+    const [formSeguranca, setFormSeguranca] = useState({ novoEmail: '', senhaAtual: '', novaSenha: '', confirmarSenha: '' });
 
     const navigate = useNavigate();
-    const user = JSON.parse(localStorage.getItem('user'));
     
     useEffect(() => {
-        if (!user || user.role !== 'admin') { navigate('/login'); return; }
+        const userLogado = JSON.parse(localStorage.getItem('user'));
+        if (!userLogado || userLogado.role !== 'admin') { 
+            navigate('/login'); 
+            return; 
+        }
         carregarDados();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [navigate]);
+    }, []);
 
     const carregarDados = async () => {
         try {
@@ -70,6 +77,47 @@ const DashboardAdmin = () => {
     };
 
     const logout = () => { localStorage.clear(); navigate('/login'); };
+
+    const handleAlterarSeguranca = async (e) => {
+        e.preventDefault();
+        
+        if (!formSeguranca.novoEmail && !formSeguranca.novaSenha) {
+            return alert('Você precisa preencher o novo e-mail ou a nova senha para atualizar.');
+        }
+
+        if (formSeguranca.novaSenha && formSeguranca.novaSenha !== formSeguranca.confirmarSenha) {
+            return alert('As senhas novas não coincidem!');
+        }
+
+        if (formSeguranca.novaSenha) {
+            const regexSenha = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+            if (!regexSenha.test(formSeguranca.novaSenha)) {
+                return alert('⚠️ A senha precisa ter pelo menos 8 caracteres, uma letra maiúscula, uma minúscula, um número e um símbolo (! @ # $).');
+            }
+        }
+
+        if (formSeguranca.novoEmail) {
+            const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!regexEmail.test(formSeguranca.novoEmail)) {
+                return alert('⚠️ Formato de e-mail inválido.');
+            }
+        }
+
+        const user = JSON.parse(localStorage.getItem('user'));
+
+        try {
+            await api.put(`/admin/security/${user.id}`, { 
+                novoEmail: formSeguranca.novoEmail,
+                senhaAtual: formSeguranca.senhaAtual, 
+                novaSenha: formSeguranca.novaSenha 
+            });
+            alert('Dados atualizados com sucesso! Você usará essas novas credenciais no seu próximo login.');
+            setModalSenhaAberto(false);
+            setFormSeguranca({ novoEmail: '', senhaAtual: '', novaSenha: '', confirmarSenha: '' });
+        } catch (error) {
+            alert(error.response?.data?.erro || 'Erro ao atualizar segurança.');
+        }
+    };
 
     const handleVendaPDV = async (e) => {
         e.preventDefault();
@@ -143,7 +191,6 @@ const DashboardAdmin = () => {
         } catch (error) { alert('Erro ao atualizar status.'); }
     };
 
-    // FUNÇÃO DE FORMATAÇÃO DE MOEDA (Padrão BR: 1.000,00)
     const formatarMoeda = (valor) => {
         return Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
@@ -178,6 +225,11 @@ const DashboardAdmin = () => {
                 <h1 style={{ color: '#D4AF37', margin: 0, fontWeight: 900, letterSpacing: '2px', textTransform: 'uppercase' }}>MATILDA ERP <small style={{fontSize: '0.8rem', color: '#444'}}>v2.1</small></h1>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center', fontFamily: 'sans-serif' }}>
                     <span style={{ color: '#94A3B8', paddingRight: '15px', borderRight: '1px solid #333' }}><i className="fas fa-user-shield" style={{marginRight:'5px'}}></i> Marcelli</span>
+                    
+                    <button onClick={() => setModalSenhaAberto(true)} style={{background: 'transparent', border: '1px solid #D4AF37', padding: '8px 15px', borderRadius: '8px', color: '#D4AF37', cursor: 'pointer', fontSize: '0.8rem', fontWeight:'bold'}}>
+                        <i className="fas fa-lock" style={{marginRight: '5px'}}></i> SEGURANÇA
+                    </button>
+
                     <button onClick={logout} style={{background: 'transparent', border: '1px solid #FF4B4B', padding: '8px 15px', borderRadius: '8px', color: '#FF4B4B', cursor: 'pointer', fontSize: '0.8rem', fontWeight:'bold'}}>SAIR</button>
                 </div>
             </div>
@@ -251,6 +303,29 @@ const DashboardAdmin = () => {
             </div>
 
             {/* ================= MODAIS ================= */}
+
+            {/* MODAL DE SEGURANÇA E ACESSO */}
+            {modalSenhaAberto && (
+                <div style={styles.modalOverlay}>
+                    <div style={styles.modalBox}>
+                        <h2 style={styles.cardTitle}><i className="fas fa-user-shield"></i> Segurança e Acesso</h2>
+                        <form onSubmit={handleAlterarSeguranca}>
+                            
+                            <p style={{ color: '#D4AF37', fontSize: '0.85rem', marginBottom: '10px', fontWeight: 'bold' }}>1. Confirme sua Identidade (Obrigatório)</p>
+                            <input style={styles.inputGold} type="password" placeholder="Sua Senha Atual" value={formSeguranca.senhaAtual} onChange={e => setFormSeguranca({...formSeguranca, senhaAtual: e.target.value})} required />
+                            
+                            <p style={{ color: '#D4AF37', fontSize: '0.85rem', margin: '15px 0 10px 0', fontWeight: 'bold' }}>2. O que deseja alterar?</p>
+                            <input style={styles.inputGold} type="email" placeholder="Novo E-mail (Deixe em branco se não quiser mudar)" value={formSeguranca.novoEmail} onChange={e => setFormSeguranca({...formSeguranca, novoEmail: e.target.value})} />
+                            <input style={styles.inputGold} type="password" placeholder="Nova Senha Forte (Deixe em branco se não quiser mudar)" value={formSeguranca.novaSenha} onChange={e => setFormSeguranca({...formSeguranca, novaSenha: e.target.value})} />
+                            <input style={styles.inputGold} type="password" placeholder="Repita a Nova Senha" value={formSeguranca.confirmarSenha} onChange={e => setFormSeguranca({...formSeguranca, confirmarSenha: e.target.value})} />
+                            
+                            <button style={{...styles.btnOperational, marginTop: '15px'}}>ATUALIZAR DADOS</button>
+                            <button type="button" onClick={() => setModalSenhaAberto(false)} style={{...styles.btnOperational, background:'transparent', border:'1px solid #333', color:'#94A3B8', marginTop:'10px'}}>CANCELAR</button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {modalGraosAberto && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalBox}>
@@ -382,7 +457,6 @@ const DashboardAdmin = () => {
                         <form onSubmit={handleVendaPDV}>
                             <select style={styles.inputGold} value={formPDV.product_id} onChange={e => {
                                 const prodId = e.target.value;
-                                // CORREÇÃO ESLINT: Usando String(id) === String(prodId)
                                 const prod = produtosPDV.find(p => String(p.id) === String(prodId));
                                 const precoVenda = prod ? parseFloat(prod.preco_venda) : 0;
                                 setFormPDV({...formPDV, product_id: prodId, valor_total: (precoVenda * formPDV.quantidade).toFixed(2)});
@@ -396,7 +470,6 @@ const DashboardAdmin = () => {
                                     <label style={{color:'#94A3B8', fontSize:'0.8rem', fontFamily:'sans-serif'}}>Qtd:</label>
                                     <input style={{...styles.inputGold, marginTop: '5px'}} type="number" min="1" value={formPDV.quantidade} onChange={e => {
                                         const qtd = e.target.value;
-                                        // CORREÇÃO ESLINT: Usando String(id) === String(formPDV.product_id)
                                         const prod = produtosPDV.find(p => String(p.id) === String(formPDV.product_id));
                                         const precoVenda = prod ? parseFloat(prod.preco_venda) : 0;
                                         setFormPDV({...formPDV, quantidade: qtd, valor_total: (precoVenda * qtd).toFixed(2)});

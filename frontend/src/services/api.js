@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Cria a instância do Axios apontando para o nosso backend
 const api = axios.create({
-    baseURL: 'http://localhost:3030/api',
+    baseURL: 'matildaerp-production.up.railway.app'
 });
 
 // Interceptor: Antes de qualquer requisição sair, ele injeta o Token JWT se o usuário estiver logado
