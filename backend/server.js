@@ -25,10 +25,11 @@ const db = mysql.createPool({
 const promisePool = db.promise();
 
 // ==========================================
-// AUTO-REPARO DO BANCO DE DADOS 
+// AUTO-REPARO DO BANCO DE DADOS (CORRIGIDO)
 // ==========================================
 async function blindarBancoDeDados() {
     try {
+        // 1. Estoque de Matéria-Prima
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS raw_inventory (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -40,6 +41,7 @@ async function blindarBancoDeDados() {
             )
         `);
         
+        // 2. Tabela de Produtos (Seus Cafés)
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS products (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -50,6 +52,56 @@ async function blindarBancoDeDados() {
             )
         `);
 
+        // 3. Tabela de Usuários e Clientes (Com o campo telefone exigido pelo Checkout)
+        await promisePool.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nome VARCHAR(255) NOT NULL,
+                telefone VARCHAR(50) NULL,
+                email VARCHAR(255) NULL,
+                senha VARCHAR(255) NULL,
+                role VARCHAR(50) DEFAULT 'user',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // 4. Tabela de Pedidos Online
+        await promisePool.query(`
+            CREATE TABLE IF NOT EXISTS orders (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                total DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                metodo_pagamento VARCHAR(50) NOT NULL,
+                status VARCHAR(50) DEFAULT 'pendente',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        `);
+
+        // 5. Itens dos Pedidos Online (Utiliza preco_unitario)
+        await promisePool.query(`
+            CREATE TABLE IF NOT EXISTS order_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                product_id INT NOT NULL,
+                quantidade INT NOT NULL,
+                preco_unitario DECIMAL(10,2) NOT NULL,
+                FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+            )
+        `);
+
+        // 6. Transações Manuais (Vital para o PDV da Feira e histórico financeiro)
+        await promisePool.query(`
+            CREATE TABLE IF NOT EXISTS manual_transactions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                tipo VARCHAR(50) NOT NULL,
+                descricao VARCHAR(255) NOT NULL,
+                valor DECIMAL(10,2) NOT NULL,
+                data_transacao DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Ajustes e travas de segurança das colunas adicionais
         try { await promisePool.query("ALTER TABLE products ADD COLUMN descricao TEXT"); } catch(e) {}
         try { await promisePool.query("ALTER TABLE products ADD COLUMN tipo VARCHAR(50) DEFAULT 'moido'"); } catch(e) {}
         try { await promisePool.query("ALTER TABLE products ADD COLUMN peso_unitario_kg DECIMAL(5,3) DEFAULT 0.250"); } catch(e) {}
@@ -61,6 +113,16 @@ async function blindarBancoDeDados() {
         } catch(e) {}
 
         await promisePool.query("DELETE FROM products WHERE estoque_pacotes > 5000");
+
+        // Alimenta o banco se a vitrine estiver vazia (Evita erro .map)
+        const [prodCheck] = await promisePool.query("SELECT id FROM products LIMIT 1");
+        if (prodCheck.length === 0) {
+            await promisePool.query(`
+                INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg, controla_estoque)
+                VALUES ('Café Especial Moído', 'Café 100% Arábica artesanal direto do Cantinho da Matilda.', 35.00, 15, 'moido', 0.250, true)
+            `);
+            console.log("☕ Produto inicial inserido com sucesso!");
+        }
 
         console.log("✅ AUTO-REPARO CONCLUÍDO: Banco limpo e pronto.");
     } catch (error) {
@@ -93,7 +155,6 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (error) { res.status(500).json({ erro: 'Erro no login.' }); }
 });
 
-// 🔥 ALTERAÇÃO DE SEGURANÇA (E-MAIL E SENHA LGPD)
 app.put('/api/admin/security/:id', verificarToken, verificarAdmin, async (req, res) => {
     const { novoEmail, senhaAtual, novaSenha } = req.body;
     const userId = req.params.id;
@@ -237,7 +298,7 @@ app.put('/api/admin/orders/:id/status', verificarToken, verificarAdmin, async (r
 });
 
 // ==========================================
-// ROTAS ADMIN (FINANÇAS E PDV FEIRA)
+// ROTAS RESTRITAS: DASHBOARD FINANCEIRO E FEIRA
 // ==========================================
 app.get('/api/admin/dashboard/summary', verificarToken, verificarAdmin, async (req, res) => {
     try {
@@ -309,7 +370,7 @@ app.post('/api/admin/transactions', verificarToken, verificarAdmin, async (req, 
 });
 
 // ==========================================
-// ESTOQUE: MATÉRIA-PRIMA E PRODUÇÃO DINÂMICA
+// ESTOQUE: MATÉRIA-PRIMA E PRODUÇÃO
 // ==========================================
 app.post('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, res) => {
     const { nome_lote, peso_kg, custo_total, data_chegada } = req.body;
@@ -380,7 +441,7 @@ app.post('/api/admin/inventory/adjust', verificarToken, verificarAdmin, async (r
         } else {
             await promisePool.query('UPDATE raw_inventory SET peso_kg = ? WHERE id = ?', [nova_quantidade, id]);
         }
-        res.json({ mensagem: 'Ajuste manual realizado!' });
+        res.json({ candy: 'Ajuste manual realizado!' });
     } catch (error) { res.status(500).json({ erro: error.message }); }
 });
 
