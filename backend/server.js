@@ -25,7 +25,7 @@ const db = mysql.createPool({
 const promisePool = db.promise();
 
 // ==========================================
-// AUTO-REPARO DO BANCO DE DADOS (CORRIGIDO)
+// AUTO-REPARO DO BANCO DE DADOS
 // ==========================================
 async function blindarBancoDeDados() {
     try {
@@ -52,7 +52,7 @@ async function blindarBancoDeDados() {
             )
         `);
 
-        // 3. Tabela de Usuários e Clientes (Com o campo telefone exigido pelo Checkout)
+        // 3. Tabela de Usuários e Clientes
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -78,7 +78,7 @@ async function blindarBancoDeDados() {
             )
         `);
 
-        // 5. Itens dos Pedidos Online (Utiliza preco_unitario)
+        // 5. Itens dos Pedidos Online
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS order_items (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -90,7 +90,7 @@ async function blindarBancoDeDados() {
             )
         `);
 
-        // 6. Transações Manuais (Vital para o PDV da Feira e histórico financeiro)
+        // 6. Transações Manuais
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS manual_transactions (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -114,15 +114,7 @@ async function blindarBancoDeDados() {
 
         await promisePool.query("DELETE FROM products WHERE estoque_pacotes > 5000");
 
-        // Alimenta o banco se a vitrine estiver vazia (Evita erro .map)
-        const [prodCheck] = await promisePool.query("SELECT id FROM products LIMIT 1");
-        if (prodCheck.length === 0) {
-            await promisePool.query(`
-                INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg, controla_estoque)
-                VALUES ('Café Especial Moído', 'Café 100% Arábica artesanal direto do Cantinho da Matilda.', 35.00, 15, 'moido', 0.250, true)
-            `);
-            console.log("☕ Produto inicial inserido com sucesso!");
-        }
+        // O bloco que criava o café de teste foi removido para garantir a loja 100% vazia.
 
         console.log("✅ AUTO-REPARO CONCLUÍDO: Banco limpo e pronto.");
     } catch (error) {
@@ -443,6 +435,24 @@ app.post('/api/admin/inventory/adjust', verificarToken, verificarAdmin, async (r
         }
         res.json({ candy: 'Ajuste manual realizado!' });
     } catch (error) { res.status(500).json({ erro: error.message }); }
+});
+
+// ==========================================
+// ROTA PROVISÓRIA PARA CRIAR O ADMIN
+// ==========================================
+app.get('/api/setup-admin', async (req, res) => {
+    try {
+        const senhaCriptografada = await bcrypt.hash('123456', 10);
+        
+        await promisePool.query(
+            "INSERT INTO users (nome, email, senha, role) VALUES (?, ?, ?, 'admin')", 
+            ['Marcelli', 'admin@matilda.com', senhaCriptografada]
+        );
+        
+        res.send("✅ Usuário admin@matilda.com criado com a senha: 123456. Pode ir fazer o login!");
+    } catch (error) {
+        res.send("Erro: " + error.message);
+    }
 });
 
 const PORT = process.env.PORT || 3030;
