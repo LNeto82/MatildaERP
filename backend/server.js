@@ -24,24 +24,36 @@ const db = mysql.createPool({
 
 const promisePool = db.promise();
 
+// Função Auxiliar para corrigir o bug de input monetário brasileiro (Ex: 1.000 vira 1000)
+const tratarInputMonetario = (valor) => {
+    if (typeof valor === 'string') {
+        if (valor.includes('.') && !valor.includes(',')) {
+            const partes = valor.split('.');
+            if (partes[partes.length - 1].length === 3) {
+                return parseFloat(valor.replace(/\./g, ''));
+            }
+        }
+        return parseFloat(valor.replace(/\./g, '').replace(',', '.'));
+    }
+    return parseFloat(valor);
+};
+
 // ==========================================
 // AUTO-REPARO DO BANCO DE DADOS
 // ==========================================
 async function blindarBancoDeDados() {
     try {
-        // 1. Estoque de Matéria-Prima
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS raw_inventory (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 nome_lote VARCHAR(255) NOT NULL,
                 peso_kg DECIMAL(10,2) NOT NULL,
-                custo_total DECIMAL(10,2) NOT NULL,
+                custo_total DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 data_chegada DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
         
-        // 2. Tabela de Produtos (Seus Cafés)
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS products (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -52,7 +64,6 @@ async function blindarBancoDeDados() {
             )
         `);
 
-        // 3. Tabela de Usuários e Clientes
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -65,7 +76,6 @@ async function blindarBancoDeDados() {
             )
         `);
 
-        // 4. Tabela de Pedidos Online
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS orders (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -74,11 +84,10 @@ async function blindarBancoDeDados() {
                 metodo_pagamento VARCHAR(50) NOT NULL,
                 status VARCHAR(50) DEFAULT 'pendente',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         `);
 
-        // 5. Itens dos Pedidos Online
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS order_items (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -90,7 +99,6 @@ async function blindarBancoDeDados() {
             )
         `);
 
-        // 6. Transações Manuais
         await promisePool.query(`
             CREATE TABLE IF NOT EXISTS manual_transactions (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -101,18 +109,10 @@ async function blindarBancoDeDados() {
             )
         `);
 
-        // Ajustes e travas de segurança das colunas adicionais
         try { await promisePool.query("ALTER TABLE products ADD COLUMN descricao TEXT"); } catch(e) {}
         try { await promisePool.query("ALTER TABLE products ADD COLUMN tipo VARCHAR(50) DEFAULT 'moido'"); } catch(e) {}
         try { await promisePool.query("ALTER TABLE products ADD COLUMN peso_unitario_kg DECIMAL(5,3) DEFAULT 0.250"); } catch(e) {}
         try { await promisePool.query("ALTER TABLE products ADD COLUMN controla_estoque BOOLEAN DEFAULT TRUE"); } catch(e) {}
-        
-        try { 
-            await promisePool.query("ALTER TABLE users MODIFY COLUMN email VARCHAR(255) NULL"); 
-            await promisePool.query("ALTER TABLE users MODIFY COLUMN senha VARCHAR(255) NULL"); 
-        } catch(e) {}
-
-        await promisePool.query("DELETE FROM products WHERE estoque_pacotes > 5000");
 
         console.log("✅ AUTO-REPARO CONCLUÍDO: Banco limpo e pronto.");
     } catch (error) {
@@ -126,15 +126,12 @@ blindarBancoDeDados();
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
     const { email, senha } = req.body;
-    
     const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!regexEmail.test(email)) {
-        return res.status(400).json({ erro: 'Formato de e-mail inválido. Verifique o que foi digitado.' });
+        return res.status(400).json({ erro: 'Formato de e-mail inválido.' });
     }
 
     try {
-        // 🔥 SUPER BYPASS INCONDICIONAL ABSOLUTO
-        // Intercepta as credenciais corretas antes de bater no banco de dados
         if (email === 'admin@matilda.com' && senha === '123456') {
             const token = jwt.sign(
                 { id: 999, role: 'admin', nome: 'Marcelli' }, 
@@ -154,49 +151,6 @@ app.post('/api/auth/login', async (req, res) => {
         const token = jwt.sign({ id: user.id, role: user.role, nome: user.nome }, process.env.JWT_SECRET, { expiresIn: '8h' });
         res.json({ token, user: { id: user.id, nome: user.nome, role: user.role } });
     } catch (error) { res.status(500).json({ erro: 'Erro no login.' }); }
-});
-
-app.put('/api/admin/security/:id', verificarToken, verificarAdmin, async (req, res) => {
-    const { novoEmail, senhaAtual, novaSenha } = req.body;
-    const userId = req.params.id;
-
-    try {
-        const [users] = await promisePool.query('SELECT senha, email FROM users WHERE id = ?', [userId]);
-        
-        // Se for o admin logado pelo bypass de id 999 ou se o banco trouxer o e-mail do admin, flexibiliza a checagem antiga
-        const isAdmin = userId == 999 || (users.length > 0 && users[0].email === 'admin@matilda.com');
-
-        if (!isAdmin && users.length === 0) return res.status(404).json({ erro: 'Usuário não encontrado.' });
-
-        if (!isAdmin) {
-            const senhaValida = await bcrypt.compare(senhaAtual, users[0].senha);
-            if (!senhaValida) return res.status(400).json({ erro: 'A senha atual está incorreta.' });
-        }
-
-        if (novoEmail) {
-            const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!regexEmail.test(novoEmail)) return res.status(400).json({ erro: 'O formato do novo e-mail é inválido.' });
-            
-            const [existe] = await promisePool.query('SELECT id FROM users WHERE email = ? AND id != ?', [novoEmail, userId]);
-            if (existe.length > 0) return res.status(400).json({ erro: 'Este e-mail já está em uso.' });
-
-            // Se for o admin fictício do token bypass, tenta atualizar o ID 2 ou 3 do banco real se eles existirem
-            await promisePool.query('UPDATE users SET email = ? WHERE email = "admin@matilda.com" OR id = ?', [novoEmail, userId]);
-        }
-
-        if (novaSenha) {
-            const regexSenha = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-            if (!regexSenha.test(novaSenha)) {
-                return res.status(400).json({ erro: 'A senha é muito fraca. Verifique as regras de segurança.' });
-            }
-            const novaSenhaHash = await bcrypt.hash(novaSenha, 10);
-            await promisePool.query('UPDATE users SET senha = ? WHERE email = "admin@matilda.com" OR id = ?', [novaSenhaHash, userId]);
-        }
-
-        res.json({ mensagem: 'Dados de acesso atualizados com sucesso!' });
-    } catch (error) {
-        res.status(500).json({ erro: error.message });
-    }
 });
 
 app.get('/api/products', async (req, res) => {
@@ -221,7 +175,6 @@ app.post('/api/orders', async (req, res) => {
         if (user.length === 0) {
             const emailFake = `${cliente_whats.replace(/\D/g, '')}@cliente.matilda.local`;
             const senhaFake = 'senha_ficticia_padrao';
-
             const [newUser] = await connection.query(
                 'INSERT INTO users (nome, telefone, role, email, senha) VALUES (?, ?, ?, ?, ?)', 
                 [cliente_nome, cliente_whats, 'cliente', emailFake, senhaFake]
@@ -239,7 +192,6 @@ app.post('/api/orders', async (req, res) => {
         for (let item of items) {
             const [produtos] = await connection.query('SELECT preco_venda, estoque_pacotes, controla_estoque FROM products WHERE id = ?', [item.product_id]);
             const produto = produtos[0];
-            
             if (produto.controla_estoque && produto.estoque_pacotes < item.quantidade) throw new Error('Estoque insuficiente para a compra.');
 
             valorTotal += produto.preco_venda * item.quantidade;
@@ -260,6 +212,15 @@ app.get('/api/admin/orders', verificarToken, verificarAdmin, async (req, res) =>
         const [pedidos] = await promisePool.query(`SELECT o.*, u.nome as cliente FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.created_at DESC`);
         res.json(pedidos);
     } catch (error) { res.status(500).send(error); }
+});
+
+// Nova Rota para Deletar/Excluir um Pedido Online do Sistema
+app.delete('/api/admin/orders/:id', verificarToken, verificarAdmin, async (req, res) => {
+    const orderId = req.params.id;
+    try {
+        await promisePool.query('DELETE FROM orders WHERE id = ?', [orderId]);
+        res.json({ mensagem: 'Pedido excluído com sucesso do histórico!' });
+    } catch (error) { res.status(500).json({ erro: error.message }); }
 });
 
 app.put('/api/admin/orders/:id/status', verificarToken, verificarAdmin, async (req, res) => {
@@ -298,7 +259,7 @@ app.put('/api/admin/orders/:id/status', verificarToken, verificarAdmin, async (r
         }
 
         await connection.commit();
-        res.json({ mensagem: 'Status updated com sucesso!' });
+        res.json({ mensagem: 'Status atualizado com sucesso!' });
     } catch (error) {
         await connection.rollback();
         res.status(500).json({ erro: error.message });
@@ -306,7 +267,7 @@ app.put('/api/admin/orders/:id/status', verificarToken, verificarAdmin, async (r
 });
 
 // ==========================================
-// ROTAS RESTRITAS: DASHBOARD FINANCEIRO E FEIRA
+// DASHBOARD E TRANSAÇÕES FINANCEIRAS
 // ==========================================
 app.get('/api/admin/dashboard/summary', verificarToken, verificarAdmin, async (req, res) => {
     try {
@@ -343,6 +304,19 @@ app.get('/api/admin/dashboard/history', verificarToken, verificarAdmin, async (r
     } catch (error) { res.status(500).send(error); }
 });
 
+// Nova Rota para buscar o histórico de Gastos Extras agrupados/separados por Mês
+app.get('/api/admin/dashboard/expenses-history', verificarToken, verificarAdmin, async (req, res) => {
+    try {
+        const [gastos] = await promisePool.query(`
+            SELECT id, DATE_FORMAT(data_transacao, '%Y-%m') as mes, descricao, valor, data_transacao
+            FROM manual_transactions
+            WHERE tipo LIKE 'gasto%'
+            ORDER BY data_transacao DESC
+        `);
+        res.json(gastos);
+    } catch (error) { res.status(500).json({ erro: error.message }); }
+});
+
 app.post('/api/admin/pos/sale', verificarToken, verificarAdmin, async (req, res) => {
     const { product_id, quantidade, valor_total } = req.body;
     const connection = await promisePool.getConnection();
@@ -350,17 +324,14 @@ app.post('/api/admin/pos/sale', verificarToken, verificarAdmin, async (req, res)
     try {
         const [produtos] = await connection.query('SELECT preco_venda, estoque_pacotes, controla_estoque FROM products WHERE id = ?', [product_id]);
         const produto = produtos[0];
-        
         if (produto.controla_estoque && produto.estoque_pacotes < quantidade) throw new Error('Estoque insuficiente para venda na Feira.');
         
-        const valorFinal = parseFloat(valor_total); 
-        
+        const valorFinal = tratarInputMonetario(valor_total); 
         await connection.query("INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES ('receita_feira', 'Venda PDV Feira', ?, NOW())", [valorFinal]);
         
         if (produto.controla_estoque) {
             await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ?', [quantidade, product_id]);
         }
-        
         await connection.commit();
         res.json({ mensagem: 'Venda registrada com sucesso!' });
     } catch (error) {
@@ -372,22 +343,23 @@ app.post('/api/admin/pos/sale', verificarToken, verificarAdmin, async (req, res)
 app.post('/api/admin/transactions', verificarToken, verificarAdmin, async (req, res) => {
     const { tipo, descricao, valor } = req.body;
     try {
-        await promisePool.query('INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES (?, ?, ?, NOW())', [tipo, descricao, valor]);
-        res.json({ mensagem: 'Transação registrada' });
+        const valorTratado = tratarInputMonetario(valor); // Corrige o bug do ponto de milhar (Ex: 1.000 -> 1000)
+        await promisePool.query('INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES (?, ?, ?, NOW())', [tipo, descricao, valorTratado]);
+        res.json({ mensagem: 'Transação registrada com sucesso!' });
     } catch (error) { res.status(500).json({ erro: error.message }); }
 });
 
 // ==========================================
 // ESTOQUE: MATÉRIA-PRIMA E PRODUÇÃO
 // ==========================================
+// Modificado para remover o campo custo_total da requisição
 app.post('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, res) => {
-    const { nome_lote, peso_kg, custo_total, data_chegada } = req.body;
+    const { nome_lote, peso_kg, data_chegada } = req.body;
     try {
-        await promisePool.query('INSERT INTO raw_inventory (nome_lote, peso_kg, custo_total, data_chegada) VALUES (?, ?, ?, ?)', [nome_lote, peso_kg, custo_total, data_chegada]);
+        // Custo total passa a ser fixado em 0 no banco, pois os custos entram via Gasto Extra
+        await promisePool.query('INSERT INTO raw_inventory (nome_lote, peso_kg, custo_total, data_chegada) VALUES (?, ?, 0.00, ?)', [nome_lote, peso_kg, data_chegada]);
         res.json({ mensagem: 'Lote Bruto guardado no estoque!' });
-    } catch (error) { 
-        res.status(500).json({ erro: error.message }); 
-    }
+    } catch (error) { res.status(500).json({ erro: error.message }); }
 });
 
 app.get('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, res) => {
@@ -406,19 +378,22 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
         let qtdPacotes = parseInt(estoque_pacotes) || 0;
         const desp = parseFloat(desperdicio_kg) || 0;
         const preco = parseFloat(preco_venda) || 0;
-        const pesoUnitario = parseFloat(peso_unitario_kg) || 0.250;
-        const tipo = pesoUnitario <= 0.020 ? 'sache' : (nome.toLowerCase().includes('grão') ? 'grao' : 'moido');
-        const desc = descricao || 'Café Especial 100% Arábica';
-
+        
         const nomeBusca = nome.toLowerCase();
+        const isDripCoffee = nomeBusca.includes('drip');
+        
+        // CORREÇÃO DO BUG DO DRIP COFFEE: Força peso unitário de 10g (0.010kg) e tipo próprio
+        let pesoUnitario = isDripCoffee ? 0.010 : (parseFloat(peso_unitario_kg) || 0.250);
+        let tipo = isDripCoffee ? 'drip_coffee' : (pesoUnitario <= 0.020 ? 'sache' : (nomeBusca.includes('grão') ? 'grao' : 'moido'));
+        
+        const desc = descricao || (isDripCoffee ? 'Drip Coffee Especial' : 'Café Especial 100% Arábica');
         const isCappuccino = nomeBusca.includes('capuc') || nomeBusca.includes('cappuc');
 
         if (!isCappuccino && raw_inventory_id) {
-            const kgLiquido = qtdPacotes * pesoUnitario;
+            const kgLiquido = qtdPacotes * pesoUnitario; // Se for 1 Drip, multiplicará por 0.010kg retirando os 10g exatos do estoque bruto
             const kgTotalSaida = kgLiquido + desp;
 
             const [lote] = await connection.query('SELECT peso_kg FROM raw_inventory WHERE id = ?', [raw_inventory_id]);
-            
             if (!lote[0]) throw new Error("Lote bruto não encontrado.");
             if (lote[0].peso_kg < kgTotalSaida) {
                 throw new Error(`Estoque insuficiente. O lote tem ${lote[0].peso_kg}kg, mas a produção exige ${kgTotalSaida}kg.`);
@@ -451,24 +426,6 @@ app.post('/api/admin/inventory/adjust', verificarToken, verificarAdmin, async (r
         }
         res.json({ mensagem: 'Ajuste manual realizado!' });
     } catch (error) { res.status(500).json({ erro: error.message }); }
-});
-
-// ==========================================
-// ROTA PROVISÓRIA PARA CRIAR O ADMIN
-// ==========================================
-app.get('/api/setup-admin', async (req, res) => {
-    try {
-        const senhaCriptografada = await bcrypt.hash('123456', 10);
-        
-        await promisePool.query(
-            "INSERT INTO users (nome, email, senha, role) VALUES (?, ?, ?, 'admin')", 
-            ['Marcelli', 'admin@matilda.com', senhaCriptografada]
-        );
-        
-        res.send("✅ Usuário admin@matilda.com criado com a senha: 123456. Pode ir fazer o login!");
-    } catch (error) {
-        res.send("Erro: " + error.message);
-    }
 });
 
 const PORT = process.env.PORT || 3030;
