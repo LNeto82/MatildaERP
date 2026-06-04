@@ -1,432 +1,676 @@
-const express = require('express');
-const cors = require('cors');
-const mysql = require('mysql2');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-require('dotenv').config();
+import React, { useState, useEffect } from 'react';
+import api from '../services/api';
 
-const { verificarToken, verificarAdmin } = require('./middlewares/authMiddleware');
+// ==========================================
+// ESTILOS AVANÇADOS (GLASS + GRADIENTES INSTAGRAM)
+// ==========================================
+const customStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap');
+  @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css');
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-});
+  body, html {
+    margin: 0;
+    padding: 0;
+    background: #0a0a0a;
+    font-family: 'Montserrat', sans-serif;
+    color: #111111;
+  }
 
-const promisePool = db.promise();
+  /* FUNDO COM GRADIENTE INSTAGRAM-STYLE */
+  .page-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    position: relative;
+    overflow-x: hidden;
+  }
 
-// Função Auxiliar para corrigir o bug de input monetário brasileiro (Ex: 1.000 vira 1000)
-const tratarInputMonetario = (valor) => {
-    if (typeof valor === 'string') {
-        if (valor.includes('.') && !valor.includes(',')) {
-            const partes = valor.split('.');
-            if (partes[partes.length - 1].length === 3) {
-                return parseFloat(valor.replace(/\./g, ''));
-            }
-        }
-        return parseFloat(valor.replace(/\./g, '').replace(',', '.'));
+  /* EFEITO DE VIDRO COM BRILHO (GLASSMORPHISM MELHORADO) */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    transition: all 0.3s ease;
+  }
+
+  .glass-panel:hover {
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+  }
+
+  /* EFEITO INSTAGRAM STORY GRADIENT */
+  .gradient-border {
+    position: relative;
+    background: linear-gradient(white, white) padding-box,
+                linear-gradient(135deg, #D4AF37, #FFD700, #F3E5AB, #D4AF37) border-box;
+    border: 2px solid transparent;
+    border-radius: 24px;
+  }
+
+  /* BOTÃO COM GRADIENTE INSTAGRAM-STYLE (STORY HIGHLIGHT) */
+  .btn-instagram {
+    background: linear-gradient(135deg, #D4AF37, #FFD700, #B8860B, #D4AF37);
+    background-size: 300% auto;
+    color: #000000;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 40px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-instagram::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.5s ease;
+  }
+
+  .btn-instagram:hover::before {
+    left: 100%;
+  }
+
+  .btn-instagram:hover {
+    background-position: right center;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(212, 175, 55, 0.5);
+  }
+
+  .btn-instagram:active {
+    transform: translateY(0px);
+  }
+
+  /* BOTÃO SECUNDÁRIO */
+  .btn-secondary {
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    color: #D4AF37;
+    font-weight: 600;
+    border: 1px solid rgba(212, 175, 55, 0.5);
+    padding: 12px 24px;
+    border-radius: 40px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.85);
+    transform: scale(1.02);
+    border-color: #D4AF37;
+  }
+
+  /* LAYOUT 50/50 */
+  .split-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    padding: 30px 5%;
+    flex: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .coffee-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-height: 75vh;
+    overflow-y: auto;
+    padding-right: 10px;
+  }
+
+  .coffee-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .coffee-list::-webkit-scrollbar-track {
+    background: rgba(212, 175, 55, 0.1);
+    border-radius: 10px;
+  }
+
+  .coffee-list::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #D4AF37, #FFD700);
+    border-radius: 10px;
+  }
+
+  /* CARD DE PRODUTO ESTILO INSTAGRAM */
+  .coffee-card {
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .coffee-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.1), transparent);
+    transition: left 0.5s ease;
+  }
+
+  .coffee-card:hover::after {
+    left: 100%;
+  }
+
+  .coffee-card:hover {
+    transform: translateX(8px) translateY(-4px);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  }
+
+  .coffee-card.active {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(255, 215, 0, 0.15));
+    border-left: 4px solid #D4AF37;
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.2);
+  }
+
+  .details-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    position: sticky;
+    top: 30px;
+    height: fit-content;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+  }
+
+  /* HEADER ESTILO INSTAGRAM */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 5%;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  /* MODAL COM EFEITO GLASS */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(12px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* INPUTS ESTILO GLASS */
+  .input-glass {
+    width: 100%;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1.5px solid rgba(212, 175, 55, 0.3);
+    border-radius: 40px;
+    color: #111;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 500;
+    outline: none;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+  }
+
+  .input-glass:focus {
+    border-color: #D4AF37;
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+    background: #ffffff;
+  }
+
+  select.input-glass {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23D4AF37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 18px center;
+    background-size: 16px;
+  }
+
+  /* BOTÃO PIX */
+  .btn-pix-copiar {
+    background: linear-gradient(135deg, #1a1a1a, #0a0a0a);
+    color: #D4AF37;
+    font-weight: bold;
+    border: 1px solid rgba(212, 175, 55, 0.5);
+    padding: 12px 24px;
+    border-radius: 40px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+  }
+
+  .btn-pix-copiar:hover {
+    background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+  }
+
+  /* ANIMAÇÃO DE ÍCONES */
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  .animated-icon {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  /* BADGE DE CARRINHO */
+  .cart-badge {
+    position: relative;
+  }
+
+  .cart-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: linear-gradient(135deg, #D4AF37, #FFD700);
+    color: #000;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 7px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  /* RESPONSIVIDADE */
+  @media (max-width: 900px) {
+    .split-layout {
+      grid-template-columns: 1fr;
+      gap: 20px;
     }
-    return parseFloat(valor);
+    .details-panel {
+      position: relative;
+      top: 0;
+    }
+    .btn-instagram {
+      padding: 10px 18px;
+      font-size: 12px;
+    }
+  }
+
+  /* EFEITO DE BRILHO NOS ÍCONES */
+  .icon-glow {
+    filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.5));
+    transition: all 0.3s ease;
+  }
+
+  .icon-glow:hover {
+    filter: drop-shadow(0 0 12px rgba(212, 175, 55, 0.8));
+    transform: scale(1.05);
+  }
+`;
+
+const formatarMoeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// =========================================================================
+// CONFIGURAÇÕES REAIS DA LOJA
+// =========================================================================
+const WHATSAPP_LOJA = "5541988495454";
+const CHAVE_PIX_ALEATORIA = "00020126580014br.gov.bcb.pix0136COLOQUE-SUA-CHAVE-AQUI-5204000053039865802BR5925Marcelli Matilda Cafe6009Curitiba62070503***63040000";
+// =========================================================================
+
+const LojaVirtual = () => {
+  const [produtos, setProdutos] = useState([]);
+  const [selecionado, setSelecionado] = useState(null);
+  const [carrinho, setCarrinho] = useState([]);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [sucessoCheckout, setSucessoCheckout] = useState(null);
+  const [formCheckout, setFormCheckout] = useState({ cliente_nome: '', cliente_whats: '', metodo_pagamento: 'pix' });
+
+  useEffect(() => {
+    api.get('/products')
+      .then(res => {
+        setProdutos(res.data);
+        if (res.data.length > 0) setSelecionado(res.data[0]);
+      })
+      .catch(err => console.error(err));
+  }, []);
+
+  const adicionarAoCarrinho = () => {
+    if (!selecionado) return;
+    const itemExistente = carrinho.find(item => item.product_id === selecionado.id);
+
+    if (itemExistente) {
+      setCarrinho(carrinho.map(item => item.product_id === selecionado.id ? { ...item, quantidade: item.quantidade + 1 } : item));
+    } else {
+      setCarrinho([...carrinho, { product_id: selecionado.id, nome: selecionado.nome, preco_venda: selecionado.preco_venda, quantidade: 1 }]);
+    }
+
+    // Efeito visual no botão
+    const btn = document.activeElement;
+    btn.style.transform = 'scale(0.95)';
+    setTimeout(() => { btn.style.transform = ''; }, 200);
+  };
+
+  const removerDoCarrinho = (productId) => {
+    setCarrinho(carrinho.map(item => {
+      if (item.product_id === productId) {
+        return { ...item, quantidade: item.quantidade - 1 };
+      }
+      return item;
+    }).filter(item => item.quantidade > 0));
+  };
+
+  const totalCarrinho = carrinho.reduce((acc, item) => acc + (parseFloat(item.preco_venda) * item.quantidade), 0);
+
+  const finalizarCompra = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/orders', { items: carrinho, ...formCheckout });
+
+      setSucessoCheckout({
+        pedido_id: res.data.orderId,
+        total: res.data.total,
+        metodo: formCheckout.metodo_pagamento,
+        nome_cliente: formCheckout.cliente_nome
+      });
+
+      setCarrinho([]);
+      setFormCheckout({ cliente_nome: '', cliente_whats: '', metodo_pagamento: 'pix' });
+    } catch (error) {
+      alert(error.response?.data?.erro || 'Erro ao finalizar pedido.');
+    }
+  };
+
+  const copiarChavePix = () => {
+    navigator.clipboard.writeText(CHAVE_PIX_ALEATORIA)
+      .then(() => alert('✨ Chave PIX copiada! Cole no app do seu banco.'))
+      .catch(() => alert('Erro ao copiar a chave PIX.'));
+  };
+
+  const enviarParaWhatsApp = () => {
+    if (!sucessoCheckout) return;
+
+    const texto = `☕ Olá, Marcelli! Sou ${sucessoCheckout.nome_cliente}.\n\nAcabei de registrar o Pedido *#${sucessoCheckout.pedido_id}* na loja virtual.\n\n*Valor Total:* R$ ${formatarMoeda(sucessoCheckout.total)}\n*Pagamento:* ${sucessoCheckout.metodo.toUpperCase()}.\n\nEstou enviando esta mensagem para confirmar meu pedido. Aguardo as instruções!`;
+    const linkWhats = `https://wa.me/${WHATSAPP_LOJA}?text=${encodeURIComponent(texto)}`;
+
+    window.open(linkWhats, '_blank');
+    setSucessoCheckout(null);
+    setModalAberto(false);
+  };
+
+  const fecharModalGeral = () => {
+    setModalAberto(false);
+    setSucessoCheckout(null);
+  };
+
+  return (
+    <div className="page-container">
+      <style>{customStyles}</style>
+
+      {/* HEADER ESTILO INSTAGRAM */}
+      <header className="header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <i className="fas fa-coffee" style={{ fontSize: '2rem', color: '#D4AF37', filter: 'drop-shadow(0 2px 4px rgba(212,175,55,0.3))' }}></i>
+          <h1 style={{ margin: 0, fontWeight: 900, background: 'linear-gradient(135deg, #D4AF37, #B8860B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '2px' }}>
+            MATILDA CAFÉ
+          </h1>
+        </div>
+
+        <button className="btn-instagram cart-badge" onClick={() => setModalAberto(true)}>
+          <i className="fas fa-shopping-cart" style={{ marginRight: '8px' }}></i>
+          Carrinho
+          {carrinho.length > 0 && <span className="cart-count">{carrinho.length}</span>}
+        </button>
+      </header>
+
+      {/* LAYOUT 50/50 */}
+      <main className="split-layout">
+        <div className="coffee-list">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+            <i className="fas fa-fire" style={{ color: '#D4AF37', fontSize: '24px' }}></i>
+            <h2 style={{ color: '#D4AF37', margin: 0 }}>NOSSAS OPÇÕES</h2>
+          </div>
+
+          {produtos.length === 0 ? (
+            <div className="glass-panel" style={{ padding: '40px', textAlign: 'center' }}>
+              <i className="fas fa-spinner fa-pulse" style={{ fontSize: '2rem', color: '#D4AF37', marginBottom: '15px' }}></i>
+              <p>Carregando produtos...</p>
+            </div>
+          ) : (
+            produtos.map(p => (
+              <div
+                key={p.id}
+                className={`glass-panel coffee-card ${selecionado?.id === p.id ? 'active' : ''}`}
+                onClick={() => setSelecionado(p)}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ margin: '0 0 5px 0', fontWeight: 800 }}>{p.nome}</h3>
+                    <span style={{ fontSize: '0.8rem', color: '#D4AF37', fontWeight: 600 }}>
+                      <i className="fas fa-tag" style={{ marginRight: '5px', fontSize: '10px' }}></i>
+                      {p.tipo === 'sache' ? 'Sachê / Drip' : p.tipo === 'drip_coffee' ? 'Drip Coffee ☕' : 'Pacote 250g'}
+                    </span>
+                  </div>
+                  <div style={{ fontWeight: 900, color: '#D4AF37', fontSize: '1.3rem' }}>
+                    R$ {formatarMoeda(p.preco_venda)}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="details-panel glass-panel">
+          {selecionado ? (
+            <>
+              <div style={{ marginBottom: '30px' }}>
+                <i className="fas fa-coffee animated-icon" style={{ fontSize: '5rem', color: '#D4AF37', marginBottom: '20px', display: 'inline-block' }}></i>
+                <h1 style={{ fontWeight: 900, fontSize: '2.2rem', margin: '0 0 10px 0', background: 'linear-gradient(135deg, #D4AF37, #B8860B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  {selecionado.nome}
+                </h1>
+                <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#D4AF37', margin: '0 0 20px 0' }}>
+                  R$ {formatarMoeda(selecionado.preco_venda)}
+                </div>
+
+                <div style={{ background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.08), rgba(255, 215, 0, 0.05))', padding: '20px', borderRadius: '20px', border: '1px solid rgba(212, 175, 55, 0.3)', marginBottom: '30px' }}>
+                  <p style={{ lineHeight: '1.8', margin: 0, fontSize: '1rem', color: '#333' }}>
+                    <i className="fas fa-quote-left" style={{ color: '#D4AF37', marginRight: '10px', opacity: 0.7 }}></i>
+                    {selecionado.descricao || 'Café especial 100% Arábica, torrado artesanalmente para você.'}
+                  </p>
+                </div>
+              </div>
+
+              <button className="btn-instagram" style={{ fontSize: '1.1rem', padding: '16px', width: '100%' }} onClick={adicionarAoCarrinho}>
+                <i className="fas fa-cart-plus" style={{ marginRight: '10px' }}></i>
+                ADICIONAR AO CARRINHO
+              </button>
+            </>
+          ) : (
+            <div style={{ color: '#999', textAlign: 'center' }}>
+              <i className="fas fa-hand-pointer" style={{ fontSize: '4rem', marginBottom: '20px', color: '#D4AF37' }}></i>
+              <h3>Selecione um produto ao lado</h3>
+              <p style={{ marginTop: '10px' }}>para ver os detalhes</p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* MODAL DE CHECKOUT */}
+      {modalAberto && (
+        <div className="modal-overlay">
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '550px', padding: '35px', maxHeight: '85vh', overflowY: 'auto', animation: 'fadeIn 0.3s ease' }}>
+
+            {/* ESTÁGIO 1: SUCESSO E PIX */}
+            {sucessoCheckout ? (
+              <div style={{ textAlign: 'center' }}>
+                <i className="fas fa-check-circle" style={{ fontSize: '4rem', color: '#25D366', marginBottom: '15px' }}></i>
+                <h2 style={{ color: '#000', fontWeight: 900 }}>Pedido #{sucessoCheckout.pedido_id}</h2>
+                <p style={{ color: '#D4AF37', fontWeight: 600, marginBottom: '20px' }}>✓ Registrado com sucesso!</p>
+
+                {sucessoCheckout.metodo === 'pix' ? (
+                  <div style={{ background: 'linear-gradient(135deg, rgba(212,175,55,0.1), rgba(255,215,0,0.05))', padding: '20px', borderRadius: '20px', margin: '20px 0' }}>
+                    <h3 style={{ margin: '0 0 15px 0', color: '#D4AF37' }}>
+                      <i className="fas fa-qrcode" style={{ marginRight: '8px' }}></i> Pague via PIX
+                    </h3>
+
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(CHAVE_PIX_ALEATORIA)}`}
+                      alt="QR Code PIX"
+                      style={{ borderRadius: '16px', marginBottom: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
+                    />
+
+                    <button className="btn-pix-copiar" type="button" onClick={copiarChavePix}>
+                      <i className="fas fa-copy" style={{ marginRight: '8px' }}></i>
+                      COPIAR CHAVE PIX
+                    </button>
+
+                    <p style={{ margin: '15px 0 0 0', fontSize: '1.2rem', color: '#25D366', fontWeight: 'bold' }}>
+                      Valor: R$ {formatarMoeda(sucessoCheckout.total)}
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ background: 'linear-gradient(135deg, rgba(212,175,55,0.1), rgba(255,215,0,0.05))', padding: '20px', borderRadius: '20px', margin: '20px 0' }}>
+                    <h3 style={{ margin: '0', color: '#D4AF37' }}>
+                      <i className="fas fa-money-bill-wave" style={{ marginRight: '8px' }}></i>
+                      Pagamento na Entrega
+                    </h3>
+                    <p style={{ marginTop: '10px' }}>Valor: R$ {formatarMoeda(sucessoCheckout.total)}</p>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+                  <button className="btn-instagram" style={{ background: 'linear-gradient(135deg, #25D366, #128C7E)', color: '#fff' }} onClick={enviarParaWhatsApp}>
+                    <i className="fab fa-whatsapp" style={{ marginRight: '10px' }}></i> CONFIRMAR NO WHATSAPP
+                  </button>
+                  <button className="btn-secondary" onClick={fecharModalGeral}>
+                    FECHAR
+                  </button>
+                </div>
+              </div>
+
+              /* ESTÁGIO 2: CARRINHO VAZIO */
+            ) : carrinho.length === 0 ? (
+              <div style={{ textAlign: 'center' }}>
+                <i className="fas fa-shopping-cart" style={{ fontSize: '4rem', color: '#ccc', marginBottom: '20px' }}></i>
+                <h2 style={{ color: '#000', fontWeight: 900, marginBottom: '15px' }}>Carrinho vazio</h2>
+                <p style={{ color: '#666', marginBottom: '25px' }}>Adicione produtos para continuar</p>
+                <button className="btn-instagram" style={{ width: '100%', background: '#E2E8F0', color: '#333' }} onClick={fecharModalGeral}>
+                  VOLTAR PARA LOJA
+                </button>
+              </div>
+
+              /* ESTÁGIO 3: FORMULÁRIO DE COMPRA */
+            ) : (
+              <form onSubmit={finalizarCompra}>
+                <h2 style={{ textAlign: 'center', color: '#000', fontWeight: 900, marginBottom: '25px' }}>
+                  <i className="fas fa-clipboard-list" style={{ color: '#D4AF37', marginRight: '10px' }}></i>
+                  Finalizar Pedido
+                </h2>
+
+                <div style={{ background: 'linear-gradient(135deg, rgba(212,175,55,0.08), rgba(255,215,0,0.04))', padding: '18px', borderRadius: '20px', marginBottom: '20px' }}>
+                  <h4 style={{ margin: '0 0 12px 0', color: '#D4AF37' }}>
+                    <i className="fas fa-receipt" style={{ marginRight: '8px' }}></i> Resumo do Pedido
+                  </h4>
+
+                  {carrinho.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '0.9rem', fontWeight: 600, padding: '8px 0', borderBottom: '1px solid rgba(212,175,55,0.15)' }}>
+                      <span style={{ color: '#000' }}>
+                        <i className="fas fa-coffee" style={{ color: '#D4AF37', marginRight: '8px', fontSize: '11px' }}></i>
+                        {item.quantidade}x {item.nome}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <span style={{ color: '#D4AF37', fontWeight: 800 }}>R$ {formatarMoeda(item.preco_venda * item.quantidade)}</span>
+                        <button
+                          type="button"
+                          onClick={() => removerDoCarrinho(item.product_id)}
+                          style={{ background: 'transparent', border: 'none', color: '#FF6B6B', cursor: 'pointer', padding: '5px', fontSize: '1rem', transition: '0.2s' }}
+                          title="Remover"
+                        >
+                          <i className="fas fa-times-circle"></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ marginTop: '15px', paddingTop: '12px', borderTop: '2px solid rgba(212,175,55,0.3)', textAlign: 'right' }}>
+                    <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#D4AF37' }}>
+                      TOTAL: R$ {formatarMoeda(totalCarrinho)}
+                    </span>
+                  </div>
+                </div>
+
+                <input
+                  className="input-glass"
+                  type="text"
+                  placeholder="Seu nome completo"
+                  value={formCheckout.cliente_nome}
+                  onChange={e => setFormCheckout({ ...formCheckout, cliente_nome: e.target.value })}
+                  required
+                />
+
+                <input
+                  className="input-glass"
+                  type="tel"
+                  placeholder="WhatsApp (apenas números)"
+                  value={formCheckout.cliente_whats}
+                  onChange={e => setFormCheckout({ ...formCheckout, cliente_whats: e.target.value })}
+                  required
+                />
+
+                <select
+                  className="input-glass"
+                  value={formCheckout.metodo_pagamento}
+                  onChange={e => setFormCheckout({ ...formCheckout, metodo_pagamento: e.target.value })}
+                >
+                  <option value="pix">💳 Pagamento via PIX</option>
+                  <option value="dinheiro">💰 Dinheiro na Entrega</option>
+                </select>
+
+                <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+                  <button type="submit" className="btn-instagram" style={{ flex: 2 }}>
+                    <i className="fas fa-check" style={{ marginRight: '8px' }}></i> FINALIZAR
+                  </button>
+                  <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={fecharModalGeral}>
+                    VOLTAR
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
-// ==========================================
-// AUTO-REPARO DO BANCO DE DADOS
-// ==========================================
-async function blindarBancoDeDados() {
-    try {
-        await promisePool.query(`
-            CREATE TABLE IF NOT EXISTS raw_inventory (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                nome_lote VARCHAR(255) NOT NULL,
-                peso_kg DECIMAL(10,2) NOT NULL,
-                custo_total DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-                data_chegada DATE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        
-        await promisePool.query(`
-            CREATE TABLE IF NOT EXISTS products (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                nome VARCHAR(255) NOT NULL,
-                preco_venda DECIMAL(10,2) NOT NULL,
-                estoque_pacotes INT DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-
-        await promisePool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                nome VARCHAR(255) NOT NULL,
-                telefone VARCHAR(50) NULL,
-                email VARCHAR(255) NULL,
-                senha VARCHAR(255) NULL,
-                role VARCHAR(50) DEFAULT 'user',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-
-        await promisePool.query(`
-            CREATE TABLE IF NOT EXISTS orders (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                total DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-                metodo_pagamento VARCHAR(50) NOT NULL,
-                status VARCHAR(50) DEFAULT 'pendente',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        `);
-
-        await promisePool.query(`
-            CREATE TABLE IF NOT EXISTS order_items (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                order_id INT NOT NULL,
-                product_id INT NOT NULL,
-                quantidade INT NOT NULL,
-                preco_unitario DECIMAL(10,2) NOT NULL,
-                FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-            )
-        `);
-
-        await promisePool.query(`
-            CREATE TABLE IF NOT EXISTS manual_transactions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                tipo VARCHAR(50) NOT NULL,
-                descricao VARCHAR(255) NOT NULL,
-                valor DECIMAL(10,2) NOT NULL,
-                data_transacao DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-
-        try { await promisePool.query("ALTER TABLE products ADD COLUMN descricao TEXT"); } catch(e) {}
-        try { await promisePool.query("ALTER TABLE products ADD COLUMN tipo VARCHAR(50) DEFAULT 'moido'"); } catch(e) {}
-        try { await promisePool.query("ALTER TABLE products ADD COLUMN peso_unitario_kg DECIMAL(5,3) DEFAULT 0.250"); } catch(e) {}
-        try { await promisePool.query("ALTER TABLE products ADD COLUMN controla_estoque BOOLEAN DEFAULT TRUE"); } catch(e) {}
-
-        console.log("✅ AUTO-REPARO CONCLUÍDO: Banco limpo e pronto.");
-    } catch (error) {
-        console.log("⚠️ Sincronização de tabelas: ", error.message);
-    }
-}
-blindarBancoDeDados();
-
-// ==========================================
-// AUTENTICAÇÃO E VITRINE (PÚBLICO)
-// ==========================================
-app.post('/api/auth/login', async (req, res) => {
-    const { email, senha } = req.body;
-    const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!regexEmail.test(email)) {
-        return res.status(400).json({ erro: 'Formato de e-mail inválido.' });
-    }
-
-    try {
-        if (email === 'admin@matilda.com' && senha === '123456') {
-            const token = jwt.sign(
-                { id: 999, role: 'admin', nome: 'Marcelli' }, 
-                process.env.JWT_SECRET || 'secret_matilda_fallback', 
-                { expiresIn: '8h' }
-            );
-            return res.json({ token, user: { id: 999, nome: 'Marcelli', role: 'admin' } });
-        }
-
-        const [users] = await promisePool.query('SELECT * FROM users WHERE email = ?', [email]);
-        if (users.length === 0) return res.status(401).json({ erro: 'Credenciais inválidas.' });
-        
-        const user = users[0];
-        const senhaValida = await bcrypt.compare(senha, user.senha);
-        if (!senhaValida) return res.status(401).json({ erro: 'Credenciais inválidas.' });
-        
-        const token = jwt.sign({ id: user.id, role: user.role, nome: user.nome }, process.env.JWT_SECRET, { expiresIn: '8h' });
-        res.json({ token, user: { id: user.id, nome: user.nome, role: user.role } });
-    } catch (error) { res.status(500).json({ erro: 'Erro no login.' }); }
-});
-
-app.get('/api/products', async (req, res) => {
-    try {
-        const [produtos] = await promisePool.query('SELECT * FROM products WHERE estoque_pacotes > 0');
-        res.json(produtos);
-    } catch (error) { res.status(500).json({ erro: 'Erro ao buscar produtos.' }); }
-});
-
-// ==========================================
-// ROTAS DE PEDIDOS (E-COMMERCE)
-// ==========================================
-app.post('/api/orders', async (req, res) => {
-    const { items, metodo_pagamento, cliente_nome, cliente_whats } = req.body;
-    const connection = await promisePool.getConnection();
-    await connection.beginTransaction();
-
-    try {
-        let [user] = await connection.query('SELECT id FROM users WHERE telefone = ?', [cliente_whats]);
-        let userId;
-
-        if (user.length === 0) {
-            const emailFake = `${cliente_whats.replace(/\D/g, '')}@cliente.matilda.local`;
-            const senhaFake = 'senha_ficticia_padrao';
-            const [newUser] = await connection.query(
-                'INSERT INTO users (nome, telefone, role, email, senha) VALUES (?, ?, ?, ?, ?)', 
-                [cliente_nome, cliente_whats, 'cliente', emailFake, senhaFake]
-            );
-            userId = newUser.insertId;
-        } else {
-            userId = user[0].id;
-            await connection.query('UPDATE users SET nome = ? WHERE id = ?', [cliente_nome, userId]);
-        }
-
-        let valorTotal = 0;
-        const [orderResult] = await connection.query('INSERT INTO orders (user_id, total, metodo_pagamento, status) VALUES (?, 0, ?, ?)', [userId, metodo_pagamento, 'pendente']);
-        const orderId = orderResult.insertId;
-
-        for (let item of items) {
-            const [produtos] = await connection.query('SELECT preco_venda, estoque_pacotes, controla_estoque FROM products WHERE id = ?', [item.product_id]);
-            const produto = produtos[0];
-            if (produto.controla_estoque && produto.estoque_pacotes < item.quantidade) throw new Error('Estoque insuficiente para a compra.');
-
-            valorTotal += produto.preco_venda * item.quantidade;
-            await connection.query('INSERT INTO order_items (order_id, product_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)', [orderId, item.product_id, item.quantidade, produto.preco_venda]);
-        }
-
-        await connection.query('UPDATE orders SET total = ? WHERE id = ?', [valorTotal, orderId]);
-        await connection.commit();
-        res.status(201).json({ orderId, total: valorTotal });
-    } catch (error) {
-        await connection.rollback();
-        res.status(400).json({ erro: error.message });
-    } finally { connection.release(); }
-});
-
-app.get('/api/admin/orders', verificarToken, verificarAdmin, async (req, res) => {
-    try {
-        const [pedidos] = await promisePool.query(`SELECT o.*, u.nome as cliente FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.created_at DESC`);
-        res.json(pedidos);
-    } catch (error) { res.status(500).send(error); }
-});
-
-// Nova Rota para Deletar/Excluir um Pedido Online do Sistema
-app.delete('/api/admin/orders/:id', verificarToken, verificarAdmin, async (req, res) => {
-    const orderId = req.params.id;
-    try {
-        await promisePool.query('DELETE FROM orders WHERE id = ?', [orderId]);
-        res.json({ mensagem: 'Pedido excluído com sucesso do histórico!' });
-    } catch (error) { res.status(500).json({ erro: error.message }); }
-});
-
-app.put('/api/admin/orders/:id/status', verificarToken, verificarAdmin, async (req, res) => {
-    const { status } = req.body;
-    const orderId = req.params.id;
-    const connection = await promisePool.getConnection();
-    await connection.beginTransaction();
-
-    try {
-        const [orderStatusRes] = await connection.query('SELECT status FROM orders WHERE id = ?', [orderId]);
-        if (orderStatusRes.length === 0) throw new Error('Pedido não encontrado');
-        const oldStatus = orderStatusRes[0].status;
-
-        await connection.query('UPDATE orders SET status = ? WHERE id = ?', [status, orderId]);
-
-        const isOldPending = oldStatus === 'pendente' || oldStatus === 'Aguardando PIX';
-        const isNewConfirmed = status !== 'pendente' && status !== 'Aguardando PIX' && status.toLowerCase() !== 'cancelado';
-
-        if (isOldPending && isNewConfirmed) {
-            const [items] = await connection.query('SELECT oi.product_id, oi.quantidade, p.controla_estoque FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', [orderId]);
-            for (let item of items) {
-                if (item.controla_estoque) {
-                    await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ?', [item.quantidade, item.product_id]);
-                }
-            }
-        }
-
-        const isOldConfirmed = oldStatus !== 'pendente' && oldStatus !== 'Aguardando PIX' && oldStatus.toLowerCase() !== 'cancelado';
-        if (isOldConfirmed && status.toLowerCase() === 'cancelado') {
-            const [items] = await connection.query('SELECT oi.product_id, oi.quantidade, p.controla_estoque FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', [orderId]);
-            for (let item of items) {
-                if (item.controla_estoque) {
-                    await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ? WHERE id = ?', [item.quantidade, item.product_id]);
-                }
-            }
-        }
-
-        await connection.commit();
-        res.json({ mensagem: 'Status atualizado com sucesso!' });
-    } catch (error) {
-        await connection.rollback();
-        res.status(500).json({ erro: error.message });
-    } finally { connection.release(); }
-});
-
-// ==========================================
-// DASHBOARD E TRANSAÇÕES FINANCEIRAS
-// ==========================================
-app.get('/api/admin/dashboard/summary', verificarToken, verificarAdmin, async (req, res) => {
-    try {
-        const [online] = await promisePool.query("SELECT SUM(total) as t FROM orders WHERE status != 'pendente' AND MONTH(created_at) = MONTH(NOW()) AND YEAR(created_at) = YEAR(NOW())");
-        const [feira] = await promisePool.query("SELECT SUM(valor) as t FROM manual_transactions WHERE tipo = 'receita_feira' AND MONTH(data_transacao) = MONTH(NOW()) AND YEAR(data_transacao) = YEAR(NOW())");
-        const [gastos] = await promisePool.query("SELECT SUM(valor) as t FROM manual_transactions WHERE tipo LIKE 'gasto%' AND MONTH(data_transacao) = MONTH(NOW()) AND YEAR(data_transacao) = YEAR(NOW())");
-        
-        const totOnline = online[0].t || 0;
-        const totFeira = feira[0].t || 0;
-        const totGastos = gastos[0].t || 0;
-
-        res.json({ vendas_online: totOnline, vendas_feira: totFeira, total_despesas: totGastos, lucro_liquido: (Number(totOnline) + Number(totFeira)) - totGastos });
-    } catch (error) { res.status(500).send(error); }
-});
-
-app.get('/api/admin/dashboard/history', verificarToken, verificarAdmin, async (req, res) => {
-    try {
-        const [orders] = await promisePool.query(`SELECT DATE_FORMAT(created_at, '%Y-%m') as mes, SUM(total) as vendas_online FROM orders WHERE status != 'pendente' GROUP BY mes`);
-        const [manual] = await promisePool.query(`SELECT DATE_FORMAT(data_transacao, '%Y-%m') as mes, tipo, SUM(valor) as total FROM manual_transactions GROUP BY mes, tipo`);
-
-        const historico = {}; 
-        orders.forEach(o => { historico[o.mes] = { mes: o.mes, vendas_online: Number(o.vendas_online), vendas_feira: 0, despesas: 0 }; });
-        manual.forEach(m => {
-            if(!historico[m.mes]) historico[m.mes] = { mes: m.mes, vendas_online: 0, vendas_feira: 0, despesas: 0 };
-            if(m.tipo === 'receita_feira') historico[m.mes].vendas_feira += Number(m.total);
-            if(m.tipo && m.tipo.includes('gasto')) historico[m.mes].despesas += Number(m.total);
-        });
-
-        const resultado = Object.values(historico).map(h => ({
-            ...h, lucro_liquido: h.vendas_online + h.vendas_feira - h.despesas
-        })).sort((a,b) => b.mes.localeCompare(a.mes)); 
-
-        res.json(resultado);
-    } catch (error) { res.status(500).send(error); }
-});
-
-// Nova Rota para buscar o histórico de Gastos Extras agrupados/separados por Mês
-app.get('/api/admin/dashboard/expenses-history', verificarToken, verificarAdmin, async (req, res) => {
-    try {
-        const [gastos] = await promisePool.query(`
-            SELECT id, DATE_FORMAT(data_transacao, '%Y-%m') as mes, descricao, valor, data_transacao
-            FROM manual_transactions
-            WHERE tipo LIKE 'gasto%'
-            ORDER BY data_transacao DESC
-        `);
-        res.json(gastos);
-    } catch (error) { res.status(500).json({ erro: error.message }); }
-});
-
-app.post('/api/admin/pos/sale', verificarToken, verificarAdmin, async (req, res) => {
-    const { product_id, quantidade, valor_total } = req.body;
-    const connection = await promisePool.getConnection();
-    await connection.beginTransaction();
-    try {
-        const [produtos] = await connection.query('SELECT preco_venda, estoque_pacotes, controla_estoque FROM products WHERE id = ?', [product_id]);
-        const produto = produtos[0];
-        if (produto.controla_estoque && produto.estoque_pacotes < quantidade) throw new Error('Estoque insuficiente para venda na Feira.');
-        
-        const valorFinal = tratarInputMonetario(valor_total); 
-        await connection.query("INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES ('receita_feira', 'Venda PDV Feira', ?, NOW())", [valorFinal]);
-        
-        if (produto.controla_estoque) {
-            await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ?', [quantidade, product_id]);
-        }
-        await connection.commit();
-        res.json({ mensagem: 'Venda registrada com sucesso!' });
-    } catch (error) {
-        await connection.rollback();
-        res.status(400).json({ erro: error.message });
-    } finally { connection.release(); }
-});
-
-app.post('/api/admin/transactions', verificarToken, verificarAdmin, async (req, res) => {
-    const { tipo, descricao, valor } = req.body;
-    try {
-        const valorTratado = tratarInputMonetario(valor); // Corrige o bug do ponto de milhar (Ex: 1.000 -> 1000)
-        await promisePool.query('INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES (?, ?, ?, NOW())', [tipo, descricao, valorTratado]);
-        res.json({ mensagem: 'Transação registrada com sucesso!' });
-    } catch (error) { res.status(500).json({ erro: error.message }); }
-});
-
-// ==========================================
-// ESTOQUE: MATÉRIA-PRIMA E PRODUÇÃO
-// ==========================================
-// Modificado para remover o campo custo_total da requisição
-app.post('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, res) => {
-    const { nome_lote, peso_kg, data_chegada } = req.body;
-    try {
-        // Custo total passa a ser fixado em 0 no banco, pois os custos entram via Gasto Extra
-        await promisePool.query('INSERT INTO raw_inventory (nome_lote, peso_kg, custo_total, data_chegada) VALUES (?, ?, 0.00, ?)', [nome_lote, peso_kg, data_chegada]);
-        res.json({ mensagem: 'Lote Bruto guardado no estoque!' });
-    } catch (error) { res.status(500).json({ erro: error.message }); }
-});
-
-app.get('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, res) => {
-    try {
-        const [lotes] = await promisePool.query('SELECT * FROM raw_inventory WHERE peso_kg > 0');
-        res.json(lotes);
-    } catch (error) { res.status(500).send(error); }
-});
-
-app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res) => {
-    const { nome, descricao, preco_venda, estoque_pacotes, raw_inventory_id, desperdicio_kg, peso_unitario_kg } = req.body;
-    const connection = await promisePool.getConnection();
-    await connection.beginTransaction();
-
-    try {
-        let qtdPacotes = parseInt(estoque_pacotes) || 0;
-        const desp = parseFloat(desperdicio_kg) || 0;
-        const preco = parseFloat(preco_venda) || 0;
-        
-        const nomeBusca = nome.toLowerCase();
-        const isDripCoffee = nomeBusca.includes('drip');
-        
-        // CORREÇÃO DO BUG DO DRIP COFFEE: Força peso unitário de 10g (0.010kg) e tipo próprio
-        let pesoUnitario = isDripCoffee ? 0.010 : (parseFloat(peso_unitario_kg) || 0.250);
-        let tipo = isDripCoffee ? 'drip_coffee' : (pesoUnitario <= 0.020 ? 'sache' : (nomeBusca.includes('grão') ? 'grao' : 'moido'));
-        
-        const desc = descricao || (isDripCoffee ? 'Drip Coffee Especial' : 'Café Especial 100% Arábica');
-        const isCappuccino = nomeBusca.includes('capuc') || nomeBusca.includes('cappuc');
-
-        if (!isCappuccino && raw_inventory_id) {
-            const kgLiquido = qtdPacotes * pesoUnitario; // Se for 1 Drip, multiplicará por 0.010kg retirando os 10g exatos do estoque bruto
-            const kgTotalSaida = kgLiquido + desp;
-
-            const [lote] = await connection.query('SELECT peso_kg FROM raw_inventory WHERE id = ?', [raw_inventory_id]);
-            if (!lote[0]) throw new Error("Lote bruto não encontrado.");
-            if (lote[0].peso_kg < kgTotalSaida) {
-                throw new Error(`Estoque insuficiente. O lote tem ${lote[0].peso_kg}kg, mas a produção exige ${kgTotalSaida}kg.`);
-            }
-            await connection.query('UPDATE raw_inventory SET peso_kg = peso_kg - ? WHERE id = ?', [kgTotalSaida, raw_inventory_id]);
-        }
-
-        const [existe] = await connection.query('SELECT id FROM products WHERE nome = ?', [nome]);
-        if (existe.length > 0) {
-            await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, descricao = ?, tipo = ?, peso_unitario_kg = ?, controla_estoque = true WHERE id = ?', [qtdPacotes, desc, tipo, pesoUnitario, existe[0].id]);
-        } else {
-            await connection.query('INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg, controla_estoque) VALUES (?, ?, ?, ?, ?, ?, true)', [nome, desc, preco, qtdPacotes, tipo, pesoUnitario]);
-        }
-
-        await connection.commit();
-        res.json({ mensagem: 'Produção registrada com sucesso!' });
-    } catch (error) {
-        await connection.rollback();
-        res.status(400).json({ erro: error.message });
-    } finally { connection.release(); }
-});
-
-app.post('/api/admin/inventory/adjust', verificarToken, verificarAdmin, async (req, res) => {
-    const { tipo_estoque, id, nova_quantidade } = req.body;
-    try {
-        if (tipo_estoque === 'pacotes') {
-            await promisePool.query('UPDATE products SET estoque_pacotes = ? WHERE id = ?', [nova_quantidade, id]);
-        } else {
-            await promisePool.query('UPDATE raw_inventory SET peso_kg = ? WHERE id = ?', [nova_quantidade, id]);
-        }
-        res.json({ mensagem: 'Ajuste manual realizado!' });
-    } catch (error) { res.status(500).json({ erro: error.message }); }
-});
-
-const PORT = process.env.PORT || 3030;
-app.listen(PORT, () => console.log(`Matilda ERP rodando na porta ${PORT}!`));
+export default LojaVirtual;
