@@ -570,3 +570,4 @@ const LojaVirtual = () => {
 };
 
 export default LojaVirtual;
+
