@@ -24,22 +24,30 @@ const db = mysql.createPool({
 
 const promisePool = db.promise();
 
-// Função para corrigir o bug de input monetário brasileiro (Ex: 1.000 vira 1000)
+// Tratamento robusto de Moeda no Padrão Brasileiro (Ex: 1.000,00 ou 1.000 vira 1000.00)
 const tratarInputMonetario = (valor) => {
-    if (typeof valor === 'string') {
-        if (valor.includes('.') && !valor.includes(',')) {
-            const partes = valor.split('.');
-            if (partes[partes.length - 1].length === 3) {
-                return parseFloat(valor.replace(/\./g, ''));
-            }
+    if (valor === undefined || valor === null || valor === '') return 0.00;
+    if (typeof valor === 'number') return valor;
+    
+    let cleanStr = String(valor).replace(/R\$\s?/g, '').trim();
+    
+    if (cleanStr.includes('.') && cleanStr.includes(',')) {
+        cleanStr = cleanStr.replace(/\./g, '').replace(',', '.');
+    } else if (cleanStr.includes(',')) {
+        cleanStr = cleanStr.replace(',', '.');
+    } else if (cleanStr.includes('.')) {
+        const parts = cleanStr.split('.');
+        if (parts.length === 2 && parts[1].length === 3) {
+            cleanStr = cleanStr.replace(/\./g, '');
         }
-        return parseFloat(valor.replace(/\./g, '').replace(',', '.'));
     }
-    return parseFloat(valor);
+    
+    const parsed = parseFloat(cleanStr);
+    return isNaN(parsed) ? 0.00 : parsed;
 };
 
 // ==========================================
-// AUTO-REPARO DO BANCO DE DADOS
+// AUTO-REPARO E CRIAÇÃO DAS TABELAS
 // ==========================================
 async function blindarBancoDeDados() {
     try {
@@ -114,7 +122,7 @@ async function blindarBancoDeDados() {
         try { await promisePool.query("ALTER TABLE products ADD COLUMN peso_unitario_kg DECIMAL(5,3) DEFAULT 0.250"); } catch(e) {}
         try { await promisePool.query("ALTER TABLE products ADD COLUMN controla_estoque BOOLEAN DEFAULT TRUE"); } catch(e) {}
 
-        console.log("✅ AUTO-REPARO CONCLUÍDO: Banco pronto.");
+        console.log("✅ AUTO-REPARO CONCLUÍDO: Tabelas sincronizadas com sucesso.");
     } catch (error) {
         console.log("⚠️ Sincronização de tabelas: ", error.message);
     }
@@ -122,15 +130,10 @@ async function blindarBancoDeDados() {
 blindarBancoDeDados();
 
 // ==========================================
-// AUTENTICAÇÃO E VITRINE (PÚBLICO)
+// AUTENTICAÇÃO E LOJA (PÚBLICO)
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
     const { email, senha } = req.body;
-    const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!regexEmail.test(email)) {
-        return res.status(400).json({ erro: 'Formato de e-mail inválido.' });
-    }
-
     try {
         if (email === 'admin@matilda.com' && senha === '123456') {
             const token = jwt.sign(
@@ -161,39 +164,29 @@ app.get('/api/products', async (req, res) => {
 });
 
 // ==========================================
-// ROTAS DE PEDIDOS (E-COMMERCE)
+// PEDIDOS ONLINE (E-COMMERCE)
 // ==========================================
 app.post('/api/orders', async (req, res) => {
     const { items, metodo_pagamento, cliente_nome, cliente_whats } = req.body;
     const connection = await promisePool.getConnection();
     await connection.beginTransaction();
-
     try {
         let [user] = await connection.query('SELECT id FROM users WHERE telefone = ?', [cliente_whats]);
-        let userId;
+        let userId = user.length === 0 ? null : user[0].id;
 
-        if (user.length === 0) {
+        if (!userId) {
             const emailFake = `${cliente_whats.replace(/\D/g, '')}@cliente.matilda.local`;
-            const senhaFake = 'senha_ficticia_padrao';
-            const [newUser] = await connection.query(
-                'INSERT INTO users (nome, telefone, role, email, senha) VALUES (?, ?, ?, ?, ?)', 
-                [cliente_nome, cliente_whats, 'cliente', emailFake, senhaFake]
-            );
+            const [newUser] = await connection.query('INSERT INTO users (nome, telefone, role, email, senha) VALUES (?, ?, \'cliente\', ?, \'ficticia\')', [cliente_nome, cliente_whats, emailFake]);
             userId = newUser.insertId;
-        } else {
-            userId = user[0].id;
-            await connection.query('UPDATE users SET nome = ? WHERE id = ?', [cliente_nome, userId]);
         }
 
         let valorTotal = 0;
-        const [orderResult] = await connection.query('INSERT INTO orders (user_id, total, metodo_pagamento, status) VALUES (?, 0, ?, ?)', [userId, metodo_pagamento, 'pendente']);
+        const [orderResult] = await connection.query('INSERT INTO orders (user_id, total, metodo_pagamento, status) VALUES (?, 0, ?, \'pendente\')', [userId, metodo_pagamento]);
         const orderId = orderResult.insertId;
 
         for (let item of items) {
             const [produtos] = await connection.query('SELECT preco_venda, estoque_pacotes, controla_estoque FROM products WHERE id = ?', [item.product_id]);
             const produto = produtos[0];
-            if (produto.controla_estoque && produto.estoque_pacotes < item.quantidade) throw new Error('Estoque insuficiente para a compra.');
-
             valorTotal += produto.preco_venda * item.quantidade;
             await connection.query('INSERT INTO order_items (order_id, product_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)', [orderId, item.product_id, item.quantidade, produto.preco_venda]);
         }
@@ -215,10 +208,9 @@ app.get('/api/admin/orders', verificarToken, verificarAdmin, async (req, res) =>
 });
 
 app.delete('/api/admin/orders/:id', verificarToken, verificarAdmin, async (req, res) => {
-    const orderId = req.params.id;
     try {
-        await promisePool.query('DELETE FROM orders WHERE id = ?', [orderId]);
-        res.json({ mensagem: 'Pedido excluído com sucesso!' });
+        await promisePool.query('DELETE FROM orders WHERE id = ?', [req.params.id]);
+        res.json({ mensagem: 'Pedido excluído!' });
     } catch (error) { res.status(500).json({ erro: error.message }); }
 });
 
@@ -227,38 +219,19 @@ app.put('/api/admin/orders/:id/status', verificarToken, verificarAdmin, async (r
     const orderId = req.params.id;
     const connection = await promisePool.getConnection();
     await connection.beginTransaction();
-
     try {
         const [orderStatusRes] = await connection.query('SELECT status FROM orders WHERE id = ?', [orderId]);
-        if (orderStatusRes.length === 0) throw new Error('Pedido não encontrado');
         const oldStatus = orderStatusRes[0].status;
-
         await connection.query('UPDATE orders SET status = ? WHERE id = ?', [status, orderId]);
 
-        const isOldPending = oldStatus === 'pendente' || oldStatus === 'Aguardando PIX';
-        const isNewConfirmed = status !== 'pendente' && status !== 'Aguardando PIX' && status.toLowerCase() !== 'cancelado';
-
-        if (isOldPending && isNewConfirmed) {
-            const [items] = await connection.query('SELECT oi.product_id, oi.quantidade, p.controla_estoque FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', [orderId]);
+        if ((oldStatus === 'pendente' || oldStatus === 'Aguardando PIX') && (status !== 'pendente' && status !== 'Aguardando PIX' && status.toLowerCase() !== 'cancelado')) {
+            const [items] = await connection.query('SELECT product_id, quantidade FROM order_items WHERE order_id = ?', [orderId]);
             for (let item of items) {
-                if (item.controla_estoque) {
-                    await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ?', [item.quantidade, item.product_id]);
-                }
+                await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes - ? WHERE id = ? AND controla_estoque = true', [item.quantidade, item.product_id]);
             }
         }
-
-        const isOldConfirmed = oldStatus !== 'pendente' && oldStatus !== 'Aguardando PIX' && oldStatus.toLowerCase() !== 'cancelado';
-        if (isOldConfirmed && status.toLowerCase() === 'cancelado') {
-            const [items] = await connection.query('SELECT oi.product_id, oi.quantidade, p.controla_estoque FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', [orderId]);
-            for (let item of items) {
-                if (item.controla_estoque) {
-                    await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, controla_estoque = true WHERE id = ?', [item.quantidade, item.product_id]);
-                }
-            }
-        }
-
         await connection.commit();
-        res.json({ mensagem: 'Status atualizado com sucesso!' });
+        res.json({ mensagem: 'Status alterado!' });
     } catch (error) {
         await connection.rollback();
         res.status(500).json({ erro: error.message });
@@ -274,11 +247,19 @@ app.get('/api/admin/dashboard/summary', verificarToken, verificarAdmin, async (r
         const [feira] = await promisePool.query("SELECT SUM(valor) as t FROM manual_transactions WHERE tipo = 'receita_feira' AND MONTH(data_transacao) = MONTH(NOW()) AND YEAR(data_transacao) = YEAR(NOW())");
         const [gastos] = await promisePool.query("SELECT SUM(valor) as t FROM manual_transactions WHERE tipo LIKE 'gasto%' AND MONTH(data_transacao) = MONTH(NOW()) AND YEAR(data_transacao) = YEAR(NOW())");
         
-        const totOnline = online[0].t || 0;
-        const totFeira = feira[0].t || 0;
-        const totGastos = gastos[0].t || 0;
+        // Conversão explícita para Number para blindar contra bugs de formatação de strings e decimais do MySQL
+        const totOnline = Number(online[0].t || 0);
+        const totFeira = Number(feira[0].t || 0);
+        const totGastos = Number(gastos[0].t || 0);
 
-        res.json({ vendas_online: totOnline, vendas_feira: totFeira, total_despesas: totGastos, lucro_liquido: (Number(totOnline) + Number(totFeira)) - totGastos });
+        const lucroLiquido = (totOnline + totFeira) - totGastos;
+
+        res.json({ 
+            vendas_online: totOnline, 
+            vendas_feira: totFeira, 
+            total_despesas: totGastos, 
+            lucro_liquido: lucroLiquido 
+        });
     } catch (error) { res.status(500).send(error); }
 });
 
@@ -305,12 +286,7 @@ app.get('/api/admin/dashboard/history', verificarToken, verificarAdmin, async (r
 
 app.get('/api/admin/dashboard/expenses-history', verificarToken, verificarAdmin, async (req, res) => {
     try {
-        const [gastos] = await promisePool.query(`
-            SELECT id, DATE_FORMAT(data_transacao, '%Y-%m') as mes, descricao, valor, data_transacao
-            FROM manual_transactions
-            WHERE tipo LIKE 'gasto%'
-            ORDER BY data_transacao DESC
-        `);
+        const [gastos] = await promisePool.query(`SELECT id, DATE_FORMAT(data_transacao, '%Y-%m') as mes, descricao, valor, data_transacao FROM manual_transactions WHERE tipo LIKE 'gasto%' ORDER BY data_transacao DESC`);
         res.json(gastos);
     } catch (error) { res.status(500).json({ erro: error.message }); }
 });
@@ -353,7 +329,8 @@ app.post('/api/admin/transactions', verificarToken, verificarAdmin, async (req, 
 app.post('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, res) => {
     const { nome_lote, peso_kg, data_chegada } = req.body;
     try {
-        await promisePool.query('INSERT INTO raw_inventory (nome_lote, peso_kg, custo_total, data_chegada) VALUES (?, ?, 0.00, ?)', [nome_lote, peso_kg, data_chegada]);
+        const pesoLimpo = tratarInputMonetario(peso_kg);
+        await promisePool.query('INSERT INTO raw_inventory (nome_lote, peso_kg, custo_total, data_chegada) VALUES (?, ?, 0.00, ?)', [nome_lote, pesoLimpo, data_chegada]);
         res.json({ mensagem: 'Lote Bruto salvo!' });
     } catch (error) { res.status(500).json({ erro: error.message }); }
 });
@@ -369,21 +346,19 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
     const { nome, descricao, preco_venda, estoque_pacotes, raw_inventory_id, desperdicio_kg, peso_unitario_kg } = req.body;
     const connection = await promisePool.getConnection();
     await connection.beginTransaction();
-
     try {
         let qtdPacotes = parseInt(estoque_pacotes) || 0;
         const desp = parseFloat(desperdicio_kg) || 0;
-        const preco = parseFloat(preco_venda) || 0;
         
         const nomeBusca = nome.toLowerCase();
         const isDripCoffee = nomeBusca.includes('drip');
         
-        // Regra de peso unitário corrigida: Drip Coffee assume 10g (0.010kg)
         let pesoUnitario = isDripCoffee ? 0.010 : (parseFloat(peso_unitario_kg) || 0.250);
         let tipo = isDripCoffee ? 'drip_coffee' : (pesoUnitario <= 0.020 ? 'sache' : (nomeBusca.includes('grão') ? 'grao' : 'moido'));
         
         const desc = descricao || (isDripCoffee ? 'Drip Coffee Especial' : 'Café Especial 100% Arábica');
         const isCappuccino = nomeBusca.includes('capuc') || nomeBusca.includes('cappuc');
+        let precoFinal = tratarInputMonetario(preco_venda);
 
         if (!isCappuccino && raw_inventory_id) {
             const kgLiquido = qtdPacotes * pesoUnitario; 
@@ -391,17 +366,16 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
 
             const [lote] = await connection.query('SELECT peso_kg FROM raw_inventory WHERE id = ?', [raw_inventory_id]);
             if (!lote[0]) throw new Error("Lote bruto não encontrado.");
-            if (lote[0].peso_kg < kgTotalSaida) {
-                throw new Error(`Estoque insuficiente no lote.`);
-            }
+            if (lote[0].peso_kg < kgTotalSaida) throw new Error(`Estoque insuficiente no lote.`);
+            
             await connection.query('UPDATE raw_inventory SET peso_kg = peso_kg - ? WHERE id = ?', [kgTotalSaida, raw_inventory_id]);
         }
 
         const [existe] = await connection.query('SELECT id FROM products WHERE nome = ?', [nome]);
         if (existe.length > 0) {
-            await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, descricao = ?, tipo = ?, peso_unitario_kg = ?, controla_estoque = true WHERE id = ?', [qtdPacotes, desc, tipo, pesoUnitario, existe[0].id]);
+            await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, preco_venda = ?, descricao = ?, tipo = ?, peso_unitario_kg = ?, controla_estoque = true WHERE id = ?', [qtdPacotes, precoFinal, desc, tipo, pesoUnitario, existe[0].id]);
         } else {
-            await connection.query('INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg, controla_estoque) VALUES (?, ?, ?, ?, ?, ?, true)', [nome, desc, preco, qtdPacotes, tipo, pesoUnitario]);
+            await connection.query('INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg, controla_estoque) VALUES (?, ?, ?, ?, ?, ?, true)', [nome, desc, precoFinal, qtdPacotes, tipo, pesoUnitario]);
         }
 
         await connection.commit();
@@ -420,7 +394,7 @@ app.post('/api/admin/inventory/adjust', verificarToken, verificarAdmin, async (r
         } else {
             await promisePool.query('UPDATE raw_inventory SET peso_kg = ? WHERE id = ?', [nova_quantidade, id]);
         }
-        res.json({ mensagem: 'Ajuste realizado!' });
+        res.json({ Urban: 'Ajuste realizado!' });
     } catch (error) { res.status(500).json({ erro: error.message }); }
 });
 
