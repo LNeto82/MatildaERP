@@ -135,25 +135,27 @@ blindarBancoDeDados();
 app.post('/api/auth/login', async (req, res) => {
     const { email, senha } = req.body;
     try {
-        if (email === 'admin@matilda.com' && senha === '123456') {
-            const token = jwt.sign(
-                { id: 999, role: 'admin', nome: 'Marcelli' }, 
-                process.env.JWT_SECRET || 'secret_matilda_fallback', 
-                { expiresIn: '8h' }
-            );
-            return res.json({ token, user: { id: 999, nome: 'Marcelli', role: 'admin' } });
-        }
-
+        // 🔍 Busca dinâmica unificada direto no banco de dados
         const [users] = await promisePool.query('SELECT * FROM users WHERE email = ?', [email]);
         if (users.length === 0) return res.status(401).json({ erro: 'Credenciais inválidas.' });
         
         const user = users[0];
+        
+        // 🛡️ Validação via comparação de hash criptografado com bcrypt
         const senhaValida = await bcrypt.compare(senha, user.senha);
         if (!senhaValida) return res.status(401).json({ erro: 'Credenciais inválidas.' });
         
-        const token = jwt.sign({ id: user.id, role: user.role, nome: user.nome }, process.env.JWT_SECRET, { expiresIn: '8h' });
+        // ✅ Emissão do token baseada nos dados armazenados na tabela
+        const token = jwt.sign(
+            { id: user.id, role: user.role, nome: user.nome }, 
+            process.env.JWT_SECRET || 'secret_matilda_fallback', 
+            { expiresIn: '8h' }
+        );
+        
         res.json({ token, user: { id: user.id, nome: user.nome, role: user.role } });
-    } catch (error) { res.status(500).json({ erro: 'Erro no login.' }); }
+    } catch (error) { 
+        res.status(500).json({ erro: 'Erro no login.' }); 
+    }
 });
 
 app.get('/api/products', async (req, res) => {
@@ -353,7 +355,6 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
         const pesoStr = String(peso_unitario_kg || '').toLowerCase();
         let pesoUnitario = parseFloat(pesoStr);
         
-        // 🌟 IDENTIFICAÇÃO ULTRA ROBUSTA DO DRIP COFFEE:
         const isDripCoffee = nomeBusca.includes('drip') || 
                              pesoStr.includes('drip') || 
                              pesoStr.includes('10g') || 
@@ -382,7 +383,6 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
         let precoFinal = tratarInputMonetario(preco_venda);
         const isCappuccino = nomeBusca.includes('capuc') || nomeBusca.includes('cappuc');
 
-        // Dedução da Matéria-Prima do Lote de Origem
         if (!isCappuccino && raw_inventory_id) {
             const kgLiquido = qtdPacotes * pesoUnitario; 
             const kgTotalSaida = kgLiquido + desp;
@@ -394,8 +394,6 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
             await connection.query('UPDATE raw_inventory SET peso_kg = peso_kg - ? WHERE id = ?', [kgTotalSaida, raw_inventory_id]);
         }
 
-        // 🌟 SOLUÇÃO DO BUG: Procurar obrigatoriamente por NOME e por TIPO.
-        // Isso impede colisões se o Drip e o Café Moído entrarem com o mesmo nome vindo do front!
         const [existe] = await connection.query('SELECT id FROM products WHERE nome = ? AND tipo = ?', [nomeFinal, tipo]);
         
         if (existe.length > 0) {

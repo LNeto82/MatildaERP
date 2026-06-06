@@ -356,8 +356,8 @@ const customStyles = `
 `;
 const formatarMoeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const WHATSAPP_LOJA = "5541988495454";
-const CHAVE_PIX_ALEATORIA = "d34a4b86-1e22-4c12-8071-a6c0c70732e9";
+const WHATSAPP_LOJA = "5541997186301";
+const CHAVE_PIX_ALEATORIA = "62482735000156";
 
 const LojaVirtual = () => {
   const [produtos, setProdutos] = useState([]);
