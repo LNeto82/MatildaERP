@@ -24,7 +24,7 @@ const db = mysql.createPool({
 
 const promisePool = db.promise();
 
-// Tratamento robusto de Moeda no Padrão Brasileiro (Ex: 1.000,00 ou 1.000 vira 1000.00)
+// Tratamento de Moeda no Padrão Brasileiro
 const tratarInputMonetario = (valor) => {
     if (valor === undefined || valor === null || valor === '') return 0.00;
     if (typeof valor === 'number') return valor;
@@ -122,7 +122,7 @@ async function blindarBancoDeDados() {
         try { await promisePool.query("ALTER TABLE products ADD COLUMN peso_unitario_kg DECIMAL(5,3) DEFAULT 0.250"); } catch(e) {}
         try { await promisePool.query("ALTER TABLE products ADD COLUMN controla_estoque BOOLEAN DEFAULT TRUE"); } catch(e) {}
 
-        console.log("✅ AUTO-REPARO CONCLUÍDO: Tabelas sincronizadas com sucesso.");
+        console.log("✅ AUTO-REPARO CONCLUÍDO: Tabelas sincronizadas.");
     } catch (error) {
         console.log("⚠️ Sincronização de tabelas: ", error.message);
     }
@@ -239,7 +239,7 @@ app.put('/api/admin/orders/:id/status', verificarToken, verificarAdmin, async (r
 });
 
 // ==========================================
-// DASHBOARD E TRANSAÇÕES FINANCEIRAS
+// DASHBOARD FINANCEIRO
 // ==========================================
 app.get('/api/admin/dashboard/summary', verificarToken, verificarAdmin, async (req, res) => {
     try {
@@ -247,7 +247,6 @@ app.get('/api/admin/dashboard/summary', verificarToken, verificarAdmin, async (r
         const [feira] = await promisePool.query("SELECT SUM(valor) as t FROM manual_transactions WHERE tipo = 'receita_feira' AND MONTH(data_transacao) = MONTH(NOW()) AND YEAR(data_transacao) = YEAR(NOW())");
         const [gastos] = await promisePool.query("SELECT SUM(valor) as t FROM manual_transactions WHERE tipo LIKE 'gasto%' AND MONTH(data_transacao) = MONTH(NOW()) AND YEAR(data_transacao) = YEAR(NOW())");
         
-        // Conversão explícita para Number para blindar contra bugs de formatação de strings e decimais do MySQL
         const totOnline = Number(online[0].t || 0);
         const totFeira = Number(feira[0].t || 0);
         const totGastos = Number(gastos[0].t || 0);
@@ -324,7 +323,7 @@ app.post('/api/admin/transactions', verificarToken, verificarAdmin, async (req, 
 });
 
 // ==========================================
-// ESTOQUE: MATÉRIA-PRIMA E PRODUÇÃO
+// ESTOQUE E PRODUÇÃO DE ITENS (SISTEMA DE DUPLA FILTRAGEM)
 // ==========================================
 app.post('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, res) => {
     const { nome_lote, peso_kg, data_chegada } = req.body;
@@ -351,15 +350,39 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
         const desp = parseFloat(desperdicio_kg) || 0;
         
         const nomeBusca = nome.toLowerCase();
-        const isDripCoffee = nomeBusca.includes('drip');
+        const pesoStr = String(peso_unitario_kg || '').toLowerCase();
+        let pesoUnitario = parseFloat(pesoStr);
         
-        let pesoUnitario = isDripCoffee ? 0.010 : (parseFloat(peso_unitario_kg) || 0.250);
-        let tipo = isDripCoffee ? 'drip_coffee' : (pesoUnitario <= 0.020 ? 'sache' : (nomeBusca.includes('grão') ? 'grao' : 'moido'));
+        // 🌟 IDENTIFICAÇÃO ULTRA ROBUSTA DO DRIP COFFEE:
+        const isDripCoffee = nomeBusca.includes('drip') || 
+                             pesoStr.includes('drip') || 
+                             pesoStr.includes('10g') || 
+                             pesoStr.includes('sachê') || 
+                             pesoStr.includes('sache') ||
+                             pesoUnitario === 0.010 || 
+                             pesoUnitario === 0.01;
         
-        const desc = descricao || (isDripCoffee ? 'Drip Coffee Especial' : 'Café Especial 100% Arábica');
-        const isCappuccino = nomeBusca.includes('capuc') || nomeBusca.includes('cappuc');
-        let precoFinal = tratarInputMonetario(preco_venda);
+        let nomeFinal = nome;
+        let tipo = 'moido';
+        let desc = descricao;
 
+        if (isDripCoffee) {
+            nomeFinal = "Drip Coffee";
+            pesoUnitario = 0.010;
+            tipo = 'drip_coffee';
+            desc = descricao || 'Drip Coffee Especial';
+        } else {
+            if (isNaN(pesoUnitario)) {
+                pesoUnitario = 0.250;
+            }
+            tipo = pesoUnitario <= 0.020 ? 'sache' : (nomeBusca.includes('grão') || nomeBusca.includes('grao') ? 'grao' : 'moido');
+            desc = descricao || 'Café Especial 100% Arábica';
+        }
+        
+        let precoFinal = tratarInputMonetario(preco_venda);
+        const isCappuccino = nomeBusca.includes('capuc') || nomeBusca.includes('cappuc');
+
+        // Dedução da Matéria-Prima do Lote de Origem
         if (!isCappuccino && raw_inventory_id) {
             const kgLiquido = qtdPacotes * pesoUnitario; 
             const kgTotalSaida = kgLiquido + desp;
@@ -371,15 +394,18 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
             await connection.query('UPDATE raw_inventory SET peso_kg = peso_kg - ? WHERE id = ?', [kgTotalSaida, raw_inventory_id]);
         }
 
-        const [existe] = await connection.query('SELECT id FROM products WHERE nome = ?', [nome]);
+        // 🌟 SOLUÇÃO DO BUG: Procurar obrigatoriamente por NOME e por TIPO.
+        // Isso impede colisões se o Drip e o Café Moído entrarem com o mesmo nome vindo do front!
+        const [existe] = await connection.query('SELECT id FROM products WHERE nome = ? AND tipo = ?', [nomeFinal, tipo]);
+        
         if (existe.length > 0) {
             await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, preco_venda = ?, descricao = ?, tipo = ?, peso_unitario_kg = ?, controla_estoque = true WHERE id = ?', [qtdPacotes, precoFinal, desc, tipo, pesoUnitario, existe[0].id]);
         } else {
-            await connection.query('INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg, controla_estoque) VALUES (?, ?, ?, ?, ?, ?, true)', [nome, desc, precoFinal, qtdPacotes, tipo, pesoUnitario]);
+            await connection.query('INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg, controla_estoque) VALUES (?, ?, ?, ?, ?, ?, true)', [nomeFinal, desc, precoFinal, qtdPacotes, tipo, pesoUnitario]);
         }
 
         await connection.commit();
-        res.json({ mensagem: 'Produção registrada com sucesso!' });
+        res.json({ mensagem: 'Produção registrada com sucesso!', produto: nomeFinal, tipo: tipo });
     } catch (error) {
         await connection.rollback();
         res.status(400).json({ erro: error.message });
@@ -394,7 +420,7 @@ app.post('/api/admin/inventory/adjust', verificarToken, verificarAdmin, async (r
         } else {
             await promisePool.query('UPDATE raw_inventory SET peso_kg = ? WHERE id = ?', [nova_quantidade, id]);
         }
-        res.json({ Urban: 'Ajuste realizado!' });
+        res.json({ mensagem: 'Ajuste realizado!' });
     } catch (error) { res.status(500).json({ erro: error.message }); }
 });
 

@@ -40,16 +40,12 @@ const DashboardAdmin = () => {
     const [modalPDVAberto, setModalPDVAberto] = useState(false);
     const [modalDespesaAberto, setModalDespesaAberto] = useState(false);
     const [modalPedidosAberto, setModalPedidosAberto] = useState(false);
-    const [modalSenhaAberto, setModalSenhaAberto] = useState(false);
 
     const [formPacotes, setFormPacotes] = useState({ nome: '', descricao: '', preco_venda: '', estoque_pacotes: '', raw_inventory_id: '', desperdicio_kg: '', peso_unitario_kg: '0.250' });
     const [formAjuste, setFormAjuste] = useState({ tipo_estoque: 'pacotes', id: '', nova_quantidade: '' });
     const [formPDV, setFormPDV] = useState({ product_id: '', quantidade: 1, valor_total: '' }); 
     const [formGraos, setFormGraos] = useState({ nome_lote: '', peso_kg: '', custo_total: '' });
     const [formDespesa, setFormDespesa] = useState({ descricao: '', valor: '' });
-    
-    // FORMULÁRIO DE SEGURANÇA E ACESSO
-    const [formSeguranca, setFormSeguranca] = useState({ novoEmail: '', senhaAtual: '', novaSenha: '', confirmarSenha: '' });
 
     const navigate = useNavigate();
     
@@ -77,47 +73,6 @@ const DashboardAdmin = () => {
     };
 
     const logout = () => { localStorage.clear(); navigate('/login'); };
-
-    const handleAlterarSeguranca = async (e) => {
-        e.preventDefault();
-        
-        if (!formSeguranca.novoEmail && !formSeguranca.novaSenha) {
-            return alert('Você precisa preencher o novo e-mail ou a nova senha para atualizar.');
-        }
-
-        if (formSeguranca.novaSenha && formSeguranca.novaSenha !== formSeguranca.confirmarSenha) {
-            return alert('As senhas novas não coincidem!');
-        }
-
-        if (formSeguranca.novaSenha) {
-            const regexSenha = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-            if (!regexSenha.test(formSeguranca.novaSenha)) {
-                return alert('⚠️ A senha precisa ter pelo menos 8 caracteres, uma letra maiúscula, uma minúscula, um número e um símbolo (! @ # $).');
-            }
-        }
-
-        if (formSeguranca.novoEmail) {
-            const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!regexEmail.test(formSeguranca.novoEmail)) {
-                return alert('⚠️ Formato de e-mail inválido.');
-            }
-        }
-
-        const user = JSON.parse(localStorage.getItem('user'));
-
-        try {
-            await api.put(`/admin/security/${user.id}`, { 
-                novoEmail: formSeguranca.novoEmail,
-                senhaAtual: formSeguranca.senhaAtual, 
-                novaSenha: formSeguranca.novaSenha 
-            });
-            alert('Dados atualizados com sucesso! Você usará essas novas credenciais no seu próximo login.');
-            setModalSenhaAberto(false);
-            setFormSeguranca({ novoEmail: '', senhaAtual: '', novaSenha: '', confirmarSenha: '' });
-        } catch (error) {
-            alert(error.response?.data?.erro || 'Erro ao atualizar segurança.');
-        }
-    };
 
     const handleVendaPDV = async (e) => {
         e.preventDefault();
@@ -195,6 +150,21 @@ const DashboardAdmin = () => {
         return Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
+    const handleProdutoChange = (e) => {
+        const produtoEscolhido = e.target.value;
+        let pesoAutomatico = "0.250";
+        if (produtoEscolhido === "Drip Coffee") {
+            pesoAutomatico = "0.010";
+        } else if (produtoEscolhido === "Cappuccino") {
+            pesoAutomatico = "0.200";
+        }
+        setFormPacotes({
+            ...formPacotes,
+            nome: produtoEscolhido,
+            peso_unitario_kg: pesoAutomatico
+        });
+    };
+
     const colorLucro = '#D4AF37';
     const colorDespesa = '#F44336';
     const colorSlate = '#64748B';
@@ -224,12 +194,7 @@ const DashboardAdmin = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', flexWrap: 'wrap', gap: '20px' }}>
                 <h1 style={{ color: '#D4AF37', margin: 0, fontWeight: 900, letterSpacing: '2px', textTransform: 'uppercase' }}>MATILDA ERP <small style={{fontSize: '0.8rem', color: '#444'}}>v2.1</small></h1>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center', fontFamily: 'sans-serif' }}>
-                    <span style={{ color: '#94A3B8', paddingRight: '15px', borderRight: '1px solid #333' }}><i className="fas fa-user-shield" style={{marginRight:'5px'}}></i> Marcelli</span>
-                    
-                    <button onClick={() => setModalSenhaAberto(true)} style={{background: 'transparent', border: '1px solid #D4AF37', padding: '8px 15px', borderRadius: '8px', color: '#D4AF37', cursor: 'pointer', fontSize: '0.8rem', fontWeight:'bold'}}>
-                        <i className="fas fa-lock" style={{marginRight: '5px'}}></i> SEGURANÇA
-                    </button>
-
+                    <span style={{ color: '#94A3B8' }}><i className="fas fa-user-shield" style={{marginRight:'5px'}}></i> Marcelli</span>
                     <button onClick={logout} style={{background: 'transparent', border: '1px solid #FF4B4B', padding: '8px 15px', borderRadius: '8px', color: '#FF4B4B', cursor: 'pointer', fontSize: '0.8rem', fontWeight:'bold'}}>SAIR</button>
                 </div>
             </div>
@@ -304,28 +269,7 @@ const DashboardAdmin = () => {
 
             {/* ================= MODAIS ================= */}
 
-            {/* MODAL DE SEGURANÇA E ACESSO */}
-            {modalSenhaAberto && (
-                <div style={styles.modalOverlay}>
-                    <div style={styles.modalBox}>
-                        <h2 style={styles.cardTitle}><i className="fas fa-user-shield"></i> Segurança e Acesso</h2>
-                        <form onSubmit={handleAlterarSeguranca}>
-                            
-                            <p style={{ color: '#D4AF37', fontSize: '0.85rem', marginBottom: '10px', fontWeight: 'bold' }}>1. Confirme sua Identidade (Obrigatório)</p>
-                            <input style={styles.inputGold} type="password" placeholder="Sua Senha Atual" value={formSeguranca.senhaAtual} onChange={e => setFormSeguranca({...formSeguranca, senhaAtual: e.target.value})} required />
-                            
-                            <p style={{ color: '#D4AF37', fontSize: '0.85rem', margin: '15px 0 10px 0', fontWeight: 'bold' }}>2. O que deseja alterar?</p>
-                            <input style={styles.inputGold} type="email" placeholder="Novo E-mail (Deixe em branco se não quiser mudar)" value={formSeguranca.novoEmail} onChange={e => setFormSeguranca({...formSeguranca, novoEmail: e.target.value})} />
-                            <input style={styles.inputGold} type="password" placeholder="Nova Senha Forte (Deixe em branco se não quiser mudar)" value={formSeguranca.novaSenha} onChange={e => setFormSeguranca({...formSeguranca, novaSenha: e.target.value})} />
-                            <input style={styles.inputGold} type="password" placeholder="Repita a Nova Senha" value={formSeguranca.confirmarSenha} onChange={e => setFormSeguranca({...formSeguranca, confirmarSenha: e.target.value})} />
-                            
-                            <button style={{...styles.btnOperational, marginTop: '15px'}}>ATUALIZAR DADOS</button>
-                            <button type="button" onClick={() => setModalSenhaAberto(false)} style={{...styles.btnOperational, background:'transparent', border:'1px solid #333', color:'#94A3B8', marginTop:'10px'}}>CANCELAR</button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
+            {/* 📦 MODAL RECEBER LOTE */}
             {modalGraosAberto && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalBox}>
@@ -341,6 +285,7 @@ const DashboardAdmin = () => {
                 </div>
             )}
 
+            {/* 🏭 MODAL PRODUÇÃO (BLINDADO) */}
             {modalPacotesAberto && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalBox}>
@@ -348,21 +293,17 @@ const DashboardAdmin = () => {
                         <form onSubmit={handleProducao}>
                             
                             <label style={{color:'#94A3B8', fontSize:'0.8rem', fontFamily:'sans-serif'}}>O que você vai produzir?</label>
-                            <select style={{...styles.inputGold, marginTop: '5px'}} value={formPacotes.nome} onChange={e => {
-                                const val = e.target.value;
-                                const isCap = val.includes('Cappuccino');
-                                setFormPacotes({...formPacotes, nome: val, descricao: isCap ? 'Mistura para Cappuccino Artesanal' : 'Café Especial 100% Arábica'});
-                            }} required>
+                            <select 
+                                style={{...styles.inputGold, marginTop: '5px'}} 
+                                value={formPacotes.nome} 
+                                onChange={handleProdutoChange} 
+                                required
+                            >
                                 <option value="">Selecione o produto...</option>
-                                <option value="Café Especial Moído">☕ Café Especial Moído</option>
-                                <option value="Café Especial em Grãos">☕ Café Especial em Grãos</option>
+                                <option value="Café Especial Moído">☕ Café Especial Moído (250g)</option>
+                                <option value="Café Especial em Grãos">🫘 Café Especial em Grãos (250g)</option>
+                                <option value="Drip Coffee">📦 Drip Coffee (Sachê 10g)</option>
                                 <option value="Cappuccino">🍫 Cappuccino</option>
-                            </select>
-
-                            <label style={{color:'#94A3B8', fontSize:'0.8rem', fontFamily:'sans-serif'}}>Formato / Peso da Unidade:</label>
-                            <select style={{...styles.inputGold, marginTop: '5px'}} value={formPacotes.peso_unitario_kg} onChange={e => setFormPacotes({...formPacotes, peso_unitario_kg: e.target.value})} required>
-                                <option value="0.250">🎒 Pacote Tradicional (250g)</option>
-                                <option value="0.010">☕ Sachê Individual / Drip Coffee (10g)</option>
                             </select>
 
                             <div style={{display: 'flex', gap: '15px'}}>
@@ -389,6 +330,7 @@ const DashboardAdmin = () => {
                 </div>
             )}
 
+            {/* 🔧 MODAL AJUSTE */}
             {modalAjusteAberto && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalBox}>
@@ -413,6 +355,7 @@ const DashboardAdmin = () => {
                 </div>
             )}
 
+            {/* 📋 MODAL PEDIDOS */}
             {modalPedidosAberto && (
                 <div style={styles.modalOverlay}>
                     <div style={{...styles.modalBox, maxWidth:'800px'}}>
@@ -450,6 +393,7 @@ const DashboardAdmin = () => {
                 </div>
             )}
 
+            {/* 🏪 MODAL PDV */}
             {modalPDVAberto && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalBox}>
@@ -488,6 +432,7 @@ const DashboardAdmin = () => {
                 </div>
             )}
             
+            {/* ➖ MODAL DESPESA */}
             {modalDespesaAberto && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalBox}>
