@@ -285,6 +285,49 @@ const customStyles = `
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   }
 
+  /* 🌟 SELETOR DE QUANTIDADE PREMIUM VITRINE */
+  .qty-selector {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 0;
+    background: rgba(255, 255, 255, 0.7);
+    padding: 6px 14px;
+    border-radius: 50px;
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    width: fit-content;
+  }
+
+  .btn-qty {
+    background: #D4AF37;
+    color: #1a1a1a;
+    border: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-weight: 900;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+
+  .btn-qty:hover {
+    background: #B8860B;
+    color: #fff;
+    transform: scale(1.1);
+  }
+
+  .qty-value {
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: #1a1a1a;
+    min-width: 18px;
+    text-align: center;
+  }
+
   /* ANIMAÇÕES */
   @keyframes pulse {
     0%, 100% { transform: scale(1); opacity: 1; }
@@ -311,7 +354,6 @@ const customStyles = `
     }
   }
 `;
-
 const formatarMoeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const WHATSAPP_LOJA = "5541988495454";
@@ -323,7 +365,17 @@ const LojaVirtual = () => {
   const [carrinho, setCarrinho] = useState([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [sucessoCheckout, setSucessoCheckout] = useState(null);
-  const [formCheckout, setFormCheckout] = useState({ cliente_nome: '', cliente_whats: '', metodo_pagamento: 'pix' });
+  
+  // 🌟 NOVO ESTADO: Controla a quantidade de pacotes do item ativo (Começa em 1)
+  const [quantidadeItem, setQuantidadeItem] = useState(1);
+
+  // 🌟 ATUALIZADO: Inclui o novo campo de método de envio exigido
+  const [formCheckout, setFormCheckout] = useState({ 
+    cliente_nome: '', 
+    cliente_whats: '', 
+    metodo_pagamento: 'pix',
+    metodo_envio: '' 
+  });
 
   useEffect(() => {
     api.get('/products')
@@ -334,15 +386,31 @@ const LojaVirtual = () => {
       .catch(err => console.error(err));
   }, []);
 
+  // 🌟 NOVO: Reseta o contador para 1 toda vez que clicar em outro café da lista
+  useEffect(() => {
+    setQuantidadeItem(1);
+  }, [selecionado]);
+
+  // 🌟 ATUALIZADO: Adiciona multiplicando pela quantidade escolhida nos botões + e -
   const adicionarAoCarrinho = () => {
     if (!selecionado) return;
     const itemExistente = carrinho.find(item => item.product_id === selecionado.id);
 
     if (itemExistente) {
-      setCarrinho(carrinho.map(item => item.product_id === selecionado.id ? { ...item, quantidade: item.quantidade + 1 } : item));
+      setCarrinho(carrinho.map(item => 
+        item.product_id === selecionado.id 
+          ? { ...item, quantidade: item.quantidade + quantidadeItem } 
+          : item
+      ));
     } else {
-      setCarrinho([...carrinho, { product_id: selecionado.id, nome: selecionado.nome, preco_venda: selecionado.preco_venda, quantidade: 1 }]);
+      setCarrinho([...carrinho, { 
+        product_id: selecionado.id, 
+        nome: selecionado.nome, 
+        preco_venda: selecionado.preco_venda, 
+        quantidade: quantidadeItem 
+      }]);
     }
+    setQuantidadeItem(1); // Reseta a prateleira de detalhes de volta para 1
   };
 
   const removerDoCarrinho = (productId) => {
@@ -356,6 +424,10 @@ const LojaVirtual = () => {
 
   const totalCarrinho = carrinho.reduce((acc, item) => acc + (parseFloat(item.preco_venda) * item.quantidade), 0);
 
+  // 🌟 NOVO: Calcula dinamicamente o total de itens físicos na sacola para o botão do cabeçalho
+  const totalItensNoCarrinho = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
+
+  // 🌟 ATUALIZADO: Envia o método de envio e carimba o sucesso do checkout
   const finalizarCompra = async (e) => {
     e.preventDefault();
     try {
@@ -364,24 +436,37 @@ const LojaVirtual = () => {
         pedido_id: res.data.orderId,
         total: res.data.total,
         metodo: formCheckout.metodo_pagamento,
-        nome_cliente: formCheckout.cliente_nome
+        nome_cliente: formCheckout.cliente_nome,
+        metodo_envio: formCheckout.metodo_envio
       });
       setCarrinho([]);
-      setFormCheckout({ cliente_nome: '', cliente_whats: '', metodo_pagamento: 'pix' });
+      setFormCheckout({ cliente_nome: '', cliente_whats: '', metodo_pagamento: 'pix', metodo_envio: '' });
     } catch (error) {
       alert(error.response?.data?.erro || 'Erro ao finalizar pedido.');
     }
   };
-
+ 
   const copiarChavePix = () => {
     navigator.clipboard.writeText(CHAVE_PIX_ALEATORIA)
       .then(() => alert('✨ Chave PIX copiada com sucesso!'))
       .catch(() => alert('Erro ao copiar a chave PIX.'));
   };
 
+  // 🌟 ATUALIZADO: Monta o texto do Whats com os itens e a opção de frete/uber/retirada
   const enviarParaWhatsApp = () => {
     if (!sucessoCheckout) return;
-    const texto = `☕ Olá! Sou ${sucessoCheckout.nome_cliente}.\n\nPedido #${sucessoCheckout.pedido_id}\nTotal: R$ ${formatarMoeda(sucessoCheckout.total)}\nPagamento: ${sucessoCheckout.metodo.toUpperCase()}`;
+    
+    const envioLabel = sucessoCheckout.metodo_envio === 'retirada' 
+      ? '🛍️ Retirar no Mercado Municipal' 
+      : '🚗 Entrega a combinar via WhatsApp (Uber / Troca de endereços)';
+
+    const texto = `☕ *NOVO PEDIDO - MATILDA CAFÉ*\n\n` +
+                  `👤 *Cliente:* ${sucessoCheckout.nome_cliente}\n` +
+                  `🔢 *Pedido:* #${sucessoCheckout.pedido_id}\n` +
+                  `💰 *Total:* R$ ${formatarMoeda(sucessoCheckout.total)}\n` +
+                  `💳 *Pagamento:* ${sucessoCheckout.metodo.toUpperCase()}\n` +
+                  `📦 *Forma de Envio:* ${envioLabel}`;
+    
     const linkWhats = `https://wa.me/${WHATSAPP_LOJA}?text=${encodeURIComponent(texto)}`;
     window.open(linkWhats, '_blank');
     setSucessoCheckout(null);
@@ -403,12 +488,11 @@ const LojaVirtual = () => {
     if (tipo === 'drip_coffee') return '☕ Drip Coffee (10g)';
     if (tipo === 'sache') return 'Sachê / Drip';
     return 'Pacote 250g';
-  };
-
-  return (
+  };return (
     <div className="page-container">
       <style>{customStyles}</style>
 
+      {/* HEADER */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <i className="fas fa-coffee coffee-icon" style={{ fontSize: '2rem', color: '#D4AF37' }}></i>
@@ -416,10 +500,11 @@ const LojaVirtual = () => {
             MATILDA CAFÉ
           </h1>
         </div>
+        {/* 🌟 ATUALIZADO: Mostra a soma total de pacotes/itens físicos na sacola */}
         <button className="btn-gradient cart-badge" onClick={() => setModalAberto(true)}>
           <i className="fas fa-shopping-cart" style={{ marginRight: '8px' }}></i>
           CARRINHO
-          {carrinho.length > 0 && <span className="cart-count">{carrinho.length}</span>}
+          {totalItensNoCarrinho > 0 && <span className="cart-count">{totalItensNoCarrinho}</span>}
         </button>
       </header>
 
@@ -464,15 +549,26 @@ const LojaVirtual = () => {
         <div className="details-panel glass-panel">
           {selecionado ? (
             <>
-              <div style={{ marginBottom: '32px' }}>
+              <div style={{ marginBottom: '20px' }}>
                 <i className={`fas ${getTipoIcone(selecionado.tipo)} coffee-icon`} style={{ fontSize: '5rem', color: '#D4AF37', marginBottom: '24px', display: 'inline-block' }}></i>
                 <h1 style={{ fontWeight: 900, fontSize: '2rem', margin: '0 0 8px 0', color: '#1a1a1a' }}>
                   {selecionado.nome}
                 </h1>
-                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#D4AF37', margin: '0 0 20px 0' }}>
+                <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#D4AF37', margin: '0 0 15px 0' }}>
                   R$ {formatarMoeda(selecionado.preco_venda)}
                 </div>
-                <div style={{ background: 'rgba(212, 175, 55, 0.08)', padding: '20px', borderRadius: '20px', marginBottom: '28px' }}>
+                
+                {/* 🌟 NOVO: Seletor de quantidade iniciando obrigatoriamente em 1 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Quantidade</span>
+                  <div className="qty-selector">
+                    <button type="button" className="btn-qty" onClick={() => setQuantidadeItem(Math.max(1, quantidadeItem - 1))}>-</button>
+                    <span className="qty-value">{quantidadeItem}</span>
+                    <button type="button" className="btn-qty" onClick={() => setQuantidadeItem(quantidadeItem + 1)}>+</button>
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(212, 175, 55, 0.08)', padding: '20px', borderRadius: '20px', marginBottom: '20px' }}>
                   <p style={{ lineHeight: '1.6', margin: 0, fontSize: '0.95rem', color: '#444' }}>
                     <i className="fas fa-quote-left" style={{ color: '#D4AF37', marginRight: '10px', opacity: 0.6 }}></i>
                     {selecionado.descricao || 'Café especial 100% Arábica, torrado artesanalmente para você.'}
@@ -485,7 +581,7 @@ const LojaVirtual = () => {
               </button>
             </>
           ) : (
-            <div style={{ textAlign: 'center' }}>
+            <div style={{ textxlign: 'center' }}>
               <i className="fas fa-hand-peace" style={{ fontSize: '4rem', color: '#D4AF37', marginBottom: '20px', opacity: 0.5 }}></i>
               <h3>Selecione um produto</h3>
               <p style={{ marginTop: '8px', opacity: 0.6 }}>para ver os detalhes</p>
@@ -494,6 +590,7 @@ const LojaVirtual = () => {
         </div>
       </main>
 
+      {/* MODAL */}
       {modalAberto && (
         <div className="modal-overlay">
           <div className="glass-panel" style={{ width: '100%', maxWidth: '520px', padding: '32px', maxHeight: '85vh', overflowY: 'auto' }}>
@@ -552,10 +649,19 @@ const LojaVirtual = () => {
                 </div>
                 <input className="input-glass" type="text" placeholder="Seu nome completo" value={formCheckout.cliente_nome} onChange={e => setFormCheckout({...formCheckout, cliente_nome: e.target.value})} required />
                 <input className="input-glass" type="tel" placeholder="WhatsApp (apenas números)" value={formCheckout.cliente_whats} onChange={e => setFormCheckout({...formCheckout, cliente_whats: e.target.value})} required />
+                
                 <select className="input-glass" value={formCheckout.metodo_pagamento} onChange={e => setFormCheckout({...formCheckout, metodo_pagamento: e.target.value})}>
                   <option value="pix">💳 PIX</option>
                   <option value="dinheiro">💰 Dinheiro na Entrega</option>
                 </select>
+
+                {/* 🌟 NOVO: Seleção obrigatória do método de entrega negociada */}
+                <select className="input-glass" value={formCheckout.metodo_envio} onChange={e => setFormCheckout({...formCheckout, metodo_envio: e.target.value})} required>
+                  <option value="">Como deseja receber seu café?</option>
+                  <option value="retirada">🛍️ Retirar no Mercado Municipal</option>
+                  <option value="entrega">🚗 Entrega (A combinar endereço/Uber via WhatsApp)</option>
+                </select>
+
                 <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
                   <button type="submit" className="btn-gradient" style={{ flex: 2 }}>FINALIZAR</button>
                   <button type="button" className="btn-glass" onClick={fecharModalGeral}>VOLTAR</button>
@@ -570,4 +676,3 @@ const LojaVirtual = () => {
 };
 
 export default LojaVirtual;
-
