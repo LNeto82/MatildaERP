@@ -357,7 +357,7 @@ const customStyles = `
 const formatarMoeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const WHATSAPP_LOJA = "5541988495454";
-const CHAVE_PIX_ALEATORIA = "00020126580014br.gov.bcb.pix0136COLOQUE-SUA-CHAVE-AQUI-5204000053039865802BR5925Marcelli Matilda Cafe6009Curitiba62070503***63040000";
+const CHAVE_PIX_ALEATORIA = "d34a4b86-1e22-4c12-8071-a6c0c70732e9";
 
 const LojaVirtual = () => {
   const [produtos, setProdutos] = useState([]);
@@ -423,9 +423,9 @@ const LojaVirtual = () => {
   };
 
   const totalCarrinho = carrinho.reduce((acc, item) => acc + (parseFloat(item.preco_venda) * item.quantidade), 0);
-
+  const totalItensNoCarrinho = carrinho.reduce((acc, item) => acc + item.quantidade, 0);  
   // 🌟 NOVO: Calcula dinamicamente o total de itens físicos na sacola para o botão do cabeçalho
-  const totalItensNoCarrinho = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
+  
 
   // 🌟 ATUALIZADO: Envia o método de envio e carimba o sucesso do checkout
   const finalizarCompra = async (e) => {
@@ -503,8 +503,8 @@ const LojaVirtual = () => {
         {/* 🌟 ATUALIZADO: Mostra a soma total de pacotes/itens físicos na sacola */}
         <button className="btn-gradient cart-badge" onClick={() => setModalAberto(true)}>
           <i className="fas fa-shopping-cart" style={{ marginRight: '8px' }}></i>
-          CARRINHO
-          {totalItensNoCarrinho > 0 && <span className="cart-count">{totalItensNoCarrinho}</span>}
+    
+          CARRINHO ({totalItensNoCarrinho})
         </button>
       </header>
 
