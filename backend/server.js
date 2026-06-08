@@ -135,17 +135,13 @@ blindarBancoDeDados();
 app.post('/api/auth/login', async (req, res) => {
     const { email, senha } = req.body;
     try {
-        // 🔍 Busca dinâmica unificada direto no banco de dados
         const [users] = await promisePool.query('SELECT * FROM users WHERE email = ?', [email]);
         if (users.length === 0) return res.status(401).json({ erro: 'Credenciais inválidas.' });
         
         const user = users[0];
-        
-        // 🛡️ Validação via comparação de hash criptografado com bcrypt
         const senhaValida = await bcrypt.compare(senha, user.senha);
         if (!senhaValida) return res.status(401).json({ erro: 'Credenciais inválidas.' });
         
-        // ✅ Emissão do token baseada nos dados armazenados na tabela
         const token = jwt.sign(
             { id: user.id, role: user.role, nome: user.nome }, 
             process.env.JWT_SECRET || 'secret_matilda_fallback', 
@@ -241,7 +237,7 @@ app.put('/api/admin/orders/:id/status', verificarToken, verificarAdmin, async (r
 });
 
 // ==========================================
-// DASHBOARD FINANCEIRO
+// DASHBOARD FINANCEIRO E INDICADORES
 // ==========================================
 app.get('/api/admin/dashboard/summary', verificarToken, verificarAdmin, async (req, res) => {
     try {
@@ -259,7 +255,7 @@ app.get('/api/admin/dashboard/summary', verificarToken, verificarAdmin, async (r
             vendas_online: totOnline, 
             vendas_feira: totFeira, 
             total_despesas: totGastos, 
-            lucro_liquido: lucroLiquido 
+            lucru_liquido: lucroLiquido 
         });
     } catch (error) { res.status(500).send(error); }
 });
@@ -283,6 +279,49 @@ app.get('/api/admin/dashboard/history', verificarToken, verificarAdmin, async (r
 
         res.json(resultado);
     } catch (error) { res.status(500).send(error); }
+});
+
+// 📊 NOVO ENDPOINT: Histórico de Gastos Mensais Consolidados para a ADM
+app.get('/api/admin/dashboard/expenses-monthly', verificarToken, verificarAdmin, async (req, res) => {
+    try {
+        const [gastosMensais] = await promisePool.query(`
+            SELECT 
+                DATE_FORMAT(data_transacao, '%Y-%m') as mes, 
+                SUM(valor) as total_despesas,
+                COUNT(id) as quantidade_transacoes
+            FROM manual_transactions 
+            WHERE tipo LIKE 'gasto%' 
+            GROUP BY mes 
+            ORDER BY mes DESC
+        `);
+        res.json(gastosMensais);
+    } catch (error) { 
+        res.status(500).json({ erro: error.message }); 
+    }
+});
+
+// 📊 NOVO ENDPOINT: Cafés Mais Vendidos para Alimentar o Gráfico do Dashboard
+app.get('/api/admin/dashboard/best-sellers', verificarToken, verificarAdmin, async (req, res) => {
+    try {
+        const [ranking] = await promisePool.query(`
+            SELECT 
+                p.nome, 
+                p.tipo, 
+                p.peso_unitario_kg,
+                SUM(oi.quantidade) as total_unidades_vendidas,
+                SUM(oi.quantidade * oi.preco_unitario) as total_faturado
+            FROM order_items oi
+            JOIN products p ON oi.product_id = p.id
+            JOIN orders o ON oi.order_id = o.id
+            WHERE o.status NOT IN ('cancelado', 'pendente')
+            GROUP BY p.id, p.nome, p.tipo, p.peso_unitario_kg
+            ORDER BY total_unidades_vendidas DESC
+            LIMIT 7
+        `);
+        res.json(ranking);
+    } catch (error) {
+        res.status(500).json({ erro: error.message });
+    }
 });
 
 app.get('/api/admin/dashboard/expenses-history', verificarToken, verificarAdmin, async (req, res) => {
@@ -320,12 +359,12 @@ app.post('/api/admin/transactions', verificarToken, verificarAdmin, async (req, 
     try {
         const valorTratado = tratarInputMonetario(valor);
         await promisePool.query('INSERT INTO manual_transactions (tipo, descricao, valor, data_transacao) VALUES (?, ?, ?, NOW())', [tipo, descricao, valorTratado]);
-        res.json({ mensagem: 'Transação registrada com sucesso!' });
+        res.json({ message: 'Transação registrada com sucesso!' });
     } catch (error) { res.status(500).json({ erro: error.message }); }
 });
 
 // ==========================================
-// ESTOQUE E PRODUÇÃO DE ITENS (SISTEMA DE DUPLA FILTRAGEM)
+// ESTOQUE E PRODUÇÃO DE ITENS (SISTEMA DE CONFIGURAÇÃO AVANÇADA)
 // ==========================================
 app.post('/api/admin/inventory/raw', verificarToken, verificarAdmin, async (req, res) => {
     const { nome_lote, peso_kg, data_chegada } = req.body;
@@ -355,55 +394,62 @@ app.post('/api/admin/products', verificarToken, verificarAdmin, async (req, res)
         const pesoStr = String(peso_unitario_kg || '').toLowerCase();
         let pesoUnitario = parseFloat(pesoStr);
         
-        const isDripCoffee = nomeBusca.includes('drip') || 
-                             pesoStr.includes('drip') || 
-                             pesoStr.includes('10g') || 
-                             pesoStr.includes('sachê') || 
-                             pesoStr.includes('sache') ||
-                             pesoUnitario === 0.010 || 
-                             pesoUnitario === 0.01;
-        
-        let nomeFinal = nome;
         let tipo = 'moido';
+        let nomeFinal = nome;
         let desc = descricao;
 
-        if (isDripCoffee) {
-            nomeFinal = "Drip Coffee";
-            pesoUnitario = 0.010;
+        // 🛠️ ANALISADOR DE REGRAS DE NEGÓCIO: Drip Coffee, Caixa de Drip, 250g ou 500g
+        const isCaixaDrip = nomeBusca.includes('caixa') && (nomeBusca.includes('drip') || nomeBusca.includes('sach'));
+        const isDripUnitario = !isCaixaDrip && (nomeBusca.includes('drip') || pesoStr.includes('10g') || pesoStr.includes('0.01'));
+
+        if (isCaixaDrip) {
+            nomeFinal = "Caixa Drip Coffee (10 un)";
+            pesoUnitario = 0.100; // ⚡ 10 sachês de 10g = 100g = 0.100 kg consumidos do lote
+            tipo = 'caixa_drip';
+            desc = descricao || 'Caixa contendo 10 sachês individuais de Drip Coffee Especial';
+        } else if (isDripUnitario) {
+            nomeFinal = "Drip Coffee (Sache)";
+            pesoUnitario = 0.010; // 10g = 0.010 kg
             tipo = 'drip_coffee';
-            desc = descricao || 'Drip Coffee Especial';
+            desc = descricao || 'Drip Coffee Especial - Sachê Individual';
         } else {
-            if (isNaN(pesoUnitario)) {
+            // ⚡ NOVA REGRA: Mapeamento preciso de Pacotes de 500g e de 250g
+            if (pesoStr.includes('500') || pesoUnitario === 0.5 || pesoUnitario === 0.500) {
+                pesoUnitario = 0.500;
+            } else if (pesoStr.includes('250') || pesoUnitario === 0.25 || pesoUnitario === 0.250 || isNaN(pesoUnitario)) {
                 pesoUnitario = 0.250;
             }
-            tipo = pesoUnitario <= 0.020 ? 'sache' : (nomeBusca.includes('grão') || nomeBusca.includes('grao') ? 'grao' : 'moido');
-            desc = descricao || 'Café Especial 100% Arábica';
+            
+            tipo = nomeBusca.includes('grão') || nomeBusca.includes('grao') ? 'grao' : 'moido';
+            desc = descricao || `Café Especial 100% Arábica (${pesoUnitario * 1000}g)`;
         }
         
         let precoFinal = tratarInputMonetario(preco_venda);
         const isCappuccino = nomeBusca.includes('capuc') || nomeBusca.includes('cappuc');
 
         if (!isCappuccino && raw_inventory_id) {
+            // O cálculo de abatimento multiplica o peso exato de cada variação (0.250, 0.500, 0.010 ou 0.100)
             const kgLiquido = qtdPacotes * pesoUnitario; 
             const kgTotalSaida = kgLiquido + desp;
 
             const [lote] = await connection.query('SELECT peso_kg FROM raw_inventory WHERE id = ?', [raw_inventory_id]);
             if (!lote[0]) throw new Error("Lote bruto não encontrado.");
-            if (lote[0].peso_kg < kgTotalSaida) throw new Error(`Estoque insuficiente no lote.`);
+            if (lote[0].peso_kg < kgTotalSaida) throw new Error(`Estoque insuficiente no lote. Necessário: ${kgTotalSaida}kg.`);
             
             await connection.query('UPDATE raw_inventory SET peso_kg = peso_kg - ? WHERE id = ?', [kgTotalSaida, raw_inventory_id]);
         }
 
-        const [existe] = await connection.query('SELECT id FROM products WHERE nome = ? AND tipo = ?', [nomeFinal, tipo]);
+        // 🔥 Correção Crucial: A busca inclui peso_unitario_kg para separar pacotes de 250g e 500g
+        const [existe] = await connection.query('SELECT id FROM products WHERE nome = ? AND tipo = ? AND peso_unitario_kg = ?', [nomeFinal, tipo, pesoUnitario]);
         
         if (existe.length > 0) {
-            await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, preco_venda = ?, descricao = ?, tipo = ?, peso_unitario_kg = ?, controla_estoque = true WHERE id = ?', [qtdPacotes, precoFinal, desc, tipo, pesoUnitario, existe[0].id]);
+            await connection.query('UPDATE products SET estoque_pacotes = estoque_pacotes + ?, preco_venda = ?, descricao = ?, controla_estoque = true WHERE id = ?', [qtdPacotes, precoFinal, desc, existe[0].id]);
         } else {
             await connection.query('INSERT INTO products (nome, descricao, preco_venda, estoque_pacotes, tipo, peso_unitario_kg, controla_estoque) VALUES (?, ?, ?, ?, ?, ?, true)', [nomeFinal, desc, precoFinal, qtdPacotes, tipo, pesoUnitario]);
         }
 
         await connection.commit();
-        res.json({ mensagem: 'Produção registrada com sucesso!', produto: nomeFinal, tipo: tipo });
+        res.json({ mensagem: 'Produção registrada com sucesso!', produto: nomeFinal, tipo: tipo, peso: pesoUnitario });
     } catch (error) {
         await connection.rollback();
         res.status(400).json({ erro: error.message });

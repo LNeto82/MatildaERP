@@ -1,6 +1,6 @@
 {
-  "short_name": "Matilda ERP",
-  "name": "Cantinho da Matilda - Gestão e PDV",
+  "short_name": "Matilda Café",
+  "name": "Matilda Café - Loja Virtual",
   "icons": [
     {
       "src": "favicon.ico",
@@ -11,18 +11,18 @@
       "src": "logo192.png",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
-  "start_url": ".",
+"start_url": "/",
   "display": "standalone",
-  "theme_color": "#0F172A",
-  "background_color": "#020617",
+  "theme_color": "#D4AF37",
+  "background_color": "#D4AF37",
   "orientation": "portrait"
 }
