@@ -5,33 +5,40 @@
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     
-    <!-- 🎨 Cor da barra de status do celular (Dourado Vivo) -->
     <meta name="theme-color" content="#D4AF37" />
-    <meta name="description" content="Matilda Café - Loja Virtual e Vitrine de Cafés Especiais." />
+    <meta name="description" content="Matilda Café - Loja Virtual e ERP de Gestão." />
     
-    <!-- Fontes externas e ícones -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- 🍏 Configurações de PWA exclusivas para iPhone (iOS) -->
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo512.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Matilda Café" />
 
-    <!-- Web App Manifest -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-
-    <!-- 🏷️ Nome comercial que aparece na aba do navegador e no histórico -->
-    <title>Matilda Café - Loja Virtual</title>
+    <script>
+      const manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      
+      // Se o usuário acessar caminhos do painel administrativo, carrega o manifesto do ERP
+      if (window.location.pathname.startsWith('/login') || window.location.pathname.startsWith('/dashboard')) {
+        manifestLink.href = '%PUBLIC_URL%/manifest-erp.json';
+        document.title = "Matilda ERP - Gestão";
+      } else {
+        // Caso contrário, carrega o manifesto padrão da Loja Virtual
+        manifestLink.href = '%PUBLIC_URL%/manifest.json';
+        document.title = "Matilda Café - Loja Virtual";
+      }
+      
+      document.head.appendChild(manifestLink);
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
 
-    <!-- 🛠️ Registro correto do Service Worker (dentro do body e sem duplicar tags) -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
