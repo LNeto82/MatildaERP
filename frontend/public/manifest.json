@@ -20,7 +20,7 @@
       "purpose": "any"
     }
   ],
-"start_url": "/",
+"start_url": "/login",
   "display": "standalone",
   "theme_color": "#D4AF37",
   "background_color": "#D4AF37",
